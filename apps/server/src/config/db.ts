@@ -23,12 +23,7 @@ export const query = async <T>(
 };
 
 export const getConnection = async () => {
-  const connection = await pool.getConnection();
-  try {
-    return connection;
-  } finally {
-    connection.release();
-  }
+  return await pool.getConnection();
 };
 
 export const checkDatabaseConnection = async (): Promise<boolean> => {
