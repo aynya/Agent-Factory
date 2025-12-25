@@ -1,18 +1,24 @@
 import tseslint from 'typescript-eslint';
 import vuePlugin from 'eslint-plugin-vue';
 import eslintConfigPrettier from 'eslint-config-prettier';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default [
+  // --------------------
   // Base configuration
+  // --------------------
   {
     ignores: [
-      'node_modules/',
-      'dist/',
-      'build/',
-      '.vscode/',
-      '.idea/',
-      '*.log',
-      '*.tsbuildinfo',
+      '**/node_modules/**',
+      '**/dist/**',
+      '**/build/**',
+      '**/.vscode/**',
+      '**/.idea/**',
+      '**/*.log',
+      '**/*.tsbuildinfo',
       '**/*.d.ts',
     ],
   },
@@ -20,16 +26,22 @@ export default [
     languageOptions: {
       ecmaVersion: 2020,
       sourceType: 'module',
+
+      // ⭐ 关键：显式指定 tsconfigRootDir
+      parserOptions: {
+        tsconfigRootDir: __dirname,
+      },
     },
     rules: {
-      // Base rules
       'no-unused-vars': 'off',
       'no-console': process.env.NODE_ENV === 'production' ? 'warn' : 'off',
       'no-debugger': process.env.NODE_ENV === 'production' ? 'warn' : 'off',
     },
   },
 
-  // TypeScript configuration
+  // --------------------
+  // TypeScript
+  // --------------------
   ...tseslint.configs.recommended,
   {
     files: ['**/*.ts'],
@@ -43,7 +55,9 @@ export default [
     },
   },
 
-  // Vue configuration
+  // --------------------
+  // Vue
+  // --------------------
   ...vuePlugin.configs['flat/essential'],
   {
     files: ['**/*.vue'],
@@ -57,6 +71,8 @@ export default [
     },
   },
 
-  // Prettier integration
+  // --------------------
+  // Prettier
+  // --------------------
   eslintConfigPrettier,
 ];
