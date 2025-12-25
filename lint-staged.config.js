@@ -1,50 +1,47 @@
-import { execSync } from 'child_process';
-import { existsSync } from 'fs';
-import { join } from 'path';
+import { readFileSync, existsSync } from 'fs';
+import { join, dirname } from 'path';
 
-const getPackageJson = filePath => {
-  const packageJsonPath = join(filePath, 'package.json');
+const getPackageNameFromDir = (dir) => {
+  const packageJsonPath = join(dir, 'package.json');
   if (existsSync(packageJsonPath)) {
-    return JSON.parse(execSync(`cat ${packageJsonPath}`));
+    try {
+      const content = readFileSync(packageJsonPath, 'utf-8');
+      return JSON.parse(content).name;
+    } catch (e) {
+      console.error(`Error reading package.json in ${dir}:`, e);
+      return null;
+    }
   }
   return null;
 };
 
-const getPackageName = changedFile => {
-  const paths = [
-    'apps/web/src',
-    'apps/server/src',
-    'packages/types/src',
-    'packages/utils/src',
-  ];
+const findPackageName = (filePath) => {
+  let currentDir = dirname(filePath);
 
-  for (const srcPath of paths) {
-    if (changedFile.startsWith(srcPath)) {
-      const packagePath = srcPath.split('/src')[0];
-      const packageJson = getPackageJson(packagePath);
-      if (packageJson) {
-        return packageJson.name;
-      }
-    }
+  while (currentDir !== '.' && currentDir !== '\\') {
+    const name = getPackageNameFromDir(currentDir);
+    if (name) return name;
+    currentDir = dirname(currentDir);
   }
   return null;
 };
 
 const lintStagedConfig = {
-  '*.{ts,tsx,vue,js,jsx}': files => {
+  '*.{ts,tsx,vue,js,jsx}': (files) => {
     const packages = new Set();
 
-    for (const file of files) {
-      const packageName = getPackageName(file);
+    files.forEach((file) => {
+      const packageName = findPackageName(file);
       if (packageName) {
         packages.add(packageName);
       }
-    }
+    });
 
     const commands = [];
-    for (const pkg of packages) {
-      commands.push(`pnpm --filter ${pkg} lint:fix`);
-      commands.push(`pnpm --filter ${pkg} format`);
+    if (packages.size > 0) {
+      const filterArgs = Array.from(packages).map(pkg => `--filter ${pkg}`).join(' ');
+      commands.push(`pnpm ${filterArgs} lint:fix`);
+      commands.push(`pnpm ${filterArgs} format`);
     }
 
     return commands;

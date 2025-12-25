@@ -17,7 +17,8 @@ app.use(express.json());
 app.get('/health', async (req, res) => {
   const dbConnected = await checkDatabaseConnection();
   if (dbConnected) {
-    res.json({code: 0,
+    res.json({
+      code: 0,
       message: 'ok',
       data: { status: 'UP', database: 'CONNECTED' },
     });
