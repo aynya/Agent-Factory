@@ -1,0 +1,21 @@
+{
+  "name": "@monorepo/utils",
+  "version": "1.0.0",
+  "description": "Shared utilities for monorepo",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist",
+    "lint": "eslint src --ext .ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@monorepo/types": "workspace:*"
+  },
+  "devDependencies": {}
+}

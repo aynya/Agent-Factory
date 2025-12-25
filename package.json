@@ -1,0 +1,50 @@
+{
+  "name": "part-4",
+  "version": "1.0.0",
+  "description": "Monorepo project with frontend and backend",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "echo 'Please use dev:web, dev:server, or dev:packages'",
+    "dev:web": "pnpm --filter web dev",
+    "dev:server": "pnpm --filter server dev",
+    "dev:packages": "pnpm --filter @monorepo/* dev",
+    "build": "pnpm run build:packages && pnpm run build:web && pnpm run build:server",
+    "build:web": "pnpm --filter web build",
+    "build:server": "pnpm --filter server build",
+    "build:packages": "pnpm --filter @monorepo/* build",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "pnpm --filter web lint && pnpm --filter server lint && pnpm --filter @monorepo/* lint",
+    "lint:fix": "pnpm --filter web lint:fix && pnpm --filter server lint:fix && pnpm --filter @monorepo/* lint:fix",
+    "clean": "pnpm run clean --filter '*'",
+    "install:all": "pnpm install",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "prepare": "husky"
+  },
+  "keywords": [
+    "monorepo",
+    "vue",
+    "typescript",
+    "express"
+  ],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.26.2",
+  "devDependencies": {
+    "@commitlint/cli": "^20.2.0",
+    "@commitlint/config-conventional": "^20.2.0",
+    "@eslint/js": "^9.39.2",
+    "@types/node": "^25.0.3",
+    "@typescript-eslint/eslint-plugin": "^8.50.1",
+    "@typescript-eslint/parser": "^8.50.1",
+    "eslint": "^9.39.2",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-vue": "^10.6.2",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.7",
+    "prettier": "^3.7.4",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.50.1"
+  }
+}
