@@ -8,6 +8,7 @@ import {
   verifyRefreshToken,
 } from '../utils/jwt.js';
 import { generateUUID } from '../utils/uuid.js';
+import { authenticateToken } from '../middleware/auth.js';
 import type {
   ApiResponse,
   RegisterRequest,
@@ -16,6 +17,7 @@ import type {
   LoginResponse,
   RefreshResponse,
   UserInDB,
+  User,
 } from '@monorepo/types';
 
 const router: Router = Router();
@@ -28,7 +30,6 @@ router.post(
   '/register',
   async (req: Request, res: Response<ApiResponse<RegisterResponse | null>>) => {
     try {
-      console.log(req.body);
       const {
         username,
         password,
@@ -237,6 +238,57 @@ router.post(
       });
     } catch (error) {
       console.error('Refresh token error:', error);
+      res.status(500).json({
+        code: 1,
+        message: 'Internal server error',
+        data: null,
+      });
+    }
+  }
+);
+
+/**
+ * 获取当前用户信息
+ * GET /api/auth/me
+ * 需要认证：使用 authenticateToken 中间件
+ */
+router.get(
+  '/me',
+  authenticateToken,
+  async (req: Request, res: Response<ApiResponse<User | null>>) => {
+    try {
+      // authenticateToken 中间件已经将用户信息附加到 req.user
+      const userId = (req as Request & { user: { user_id: string; username: string } }).user.user_id;
+
+      // 查询用户信息
+      const users = await query<UserInDB>(
+        'SELECT id, username, avatar, created_at FROM users WHERE id = ?',
+        [userId]
+      );
+
+      if (users.length === 0 || !users[0]) {
+        res.status(404).json({
+          code: 1,
+          message: 'User not found',
+          data: null,
+        });
+        return;
+      }
+
+      const user = users[0];
+
+      res.json({
+        code: 0,
+        message: 'ok',
+        data: {
+          id: user.id,
+          username: user.username,
+          avatar: user.avatar,
+          createdAt: user.created_at,
+        },
+      });
+    } catch (error) {
+      console.error('Get user info error:', error);
       res.status(500).json({
         code: 1,
         message: 'Internal server error',
