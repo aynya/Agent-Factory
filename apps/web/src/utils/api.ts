@@ -31,6 +31,21 @@ async function request<T>(url: string, options: RequestInit = {}): Promise<ApiRe
     credentials: 'include', // 允许携带 cookie（用于 refreshToken）
   })
 
+  // 检查响应状态
+  if (!response.ok && response.status !== 403) {
+    // 非 403 错误，直接返回错误响应
+    try {
+      const errorData = await response.json()
+      return errorData
+    } catch {
+      return {
+        code: response.status,
+        message: `请求失败: ${response.statusText}`,
+        data: null,
+      } as ApiResponse<T>
+    }
+  }
+
   const data = await response.json()
 
   // 如果 access_token 过期，尝试刷新
