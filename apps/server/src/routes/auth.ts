@@ -258,7 +258,9 @@ router.get(
   async (req: Request, res: Response<ApiResponse<User | null>>) => {
     try {
       // authenticateToken 中间件已经将用户信息附加到 req.user
-      const userId = (req as Request & { user: { user_id: string; username: string } }).user.user_id;
+      const userId = (
+        req as Request & { user: { user_id: string; username: string } }
+      ).user.user_id;
 
       // 查询用户信息
       const users = await query<UserInDB>(
