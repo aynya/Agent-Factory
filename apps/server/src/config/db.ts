@@ -12,6 +12,7 @@ const pool = mysql.createPool({
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
+  timezone: '+00:00', // 设置为 UTC 时区，避免时区转换问题
 });
 
 export const query = async <T>(

@@ -2,7 +2,7 @@
 export interface ApiResponse<T = unknown> {
   code: number;
   message: string;
-  data: T;
+  data: T | null;
 }
 
 // Health check types
@@ -16,11 +16,48 @@ export interface HealthStatus {
 
 // User types
 export interface User {
-  id: number;
+  id: string; // UUID
   username: string;
-  email: string;
+  avatar: string;
   createdAt: string;
-  updatedAt: string;
+}
+
+export interface UserInDB {
+  id: string;
+  username: string;
+  password: string;
+  avatar: string;
+  created_at: string;
+}
+
+// Auth types
+export interface RegisterRequest {
+  username: string;
+  password: string;
+  avatar?: string;
+}
+
+export interface RegisterResponse {
+  user_id: string;
+}
+
+export interface LoginRequest {
+  username: string;
+  password: string;
+}
+
+export interface LoginResponse {
+  access_token: string;
+  user: User;
+}
+
+export interface RefreshResponse {
+  access_token: string;
+}
+
+export interface JwtPayload {
+  user_id: string;
+  username: string;
 }
 
 // Common pagination types
