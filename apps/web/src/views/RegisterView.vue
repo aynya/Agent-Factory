@@ -158,7 +158,7 @@ const registerForm = reactive({
 const validateConfirmPassword = (
   _rule: RuleItem,
   value: string,
-  callback: (error?: Error) => void,
+  callback: (error?: Error) => void
 ) => {
   if (value !== registerForm.password) {
     callback(new Error('两次输入的密码不一致'))
@@ -185,7 +185,7 @@ const registerRules: FormRules = {
 const handleRegister = async () => {
   if (!registerFormRef.value) return
 
-  await registerFormRef.value.validate(async (valid) => {
+  await registerFormRef.value.validate(async valid => {
     if (!valid) return
 
     loading.value = true
