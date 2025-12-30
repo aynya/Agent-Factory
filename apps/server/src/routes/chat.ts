@@ -9,6 +9,7 @@ import type {
   ChatAbortRequest,
   ChatAbortResponse,
   ApiResponse,
+  Thread,
 } from '@monorepo/types';
 
 const router: Router = Router();
@@ -399,6 +400,54 @@ router.post(
       // 清理资源
       testActiveStreams.delete(streamKey);
       connection.release();
+    }
+  }
+);
+
+/**
+ * 获取用户会话列表
+ * GET /api/chat/threads
+ */
+router.get(
+  '/threads',
+  authenticateToken,
+  async (req: Request, res: Response<ApiResponse<Thread[]>>) => {
+    const user = (
+      req as Request & { user: { user_id: string; username: string } }
+    ).user;
+
+    try {
+      // 查询该用户的所有会话，按更新时间降序排列
+      const threads = await query<{
+        id: string;
+        title: string;
+        agent_id: string;
+        updated_at: string;
+      }>(
+        'SELECT id, title, agent_id, updated_at FROM threads WHERE user_id = ? ORDER BY updated_at DESC',
+        [user.user_id]
+      );
+
+      // 转换为前端需要的格式
+      const threadList: Thread[] = threads.map(thread => ({
+        threadId: thread.id,
+        title: thread.title || '未命名会话',
+        agentId: thread.agent_id,
+        updatedAt: thread.updated_at,
+      }));
+
+      res.json({
+        code: 0,
+        message: 'ok',
+        data: threadList,
+      });
+    } catch (error: unknown) {
+      console.error('Get threads error:', error);
+      res.status(500).json({
+        code: 500,
+        message: error instanceof Error ? error.message : '服务器内部错误',
+        data: null,
+      });
     }
   }
 );

@@ -120,3 +120,15 @@ export interface SSEErrorEvent {
   code: number;
   message: string;
 }
+
+// Thread types
+export interface Thread {
+  threadId: string;
+  title: string;
+  agentId: string;
+  updatedAt: string;
+}
+
+export interface ThreadListResponse {
+  threads: Thread[];
+}
