@@ -181,10 +181,21 @@ function renderMarkdown(text: string): string {
 /**
  * 滚动到底部
  */
-function scrollToBottom() {
+function scrollToBottom(isCheck = true) {
   nextTick(() => {
     if (messagesContainer.value) {
-      messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
+      if (isCheck) {
+        if (
+          messagesContainer.value.scrollHeight -
+            messagesContainer.value.scrollTop -
+            messagesContainer.value.clientHeight <
+          50
+        ) {
+          messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
+        }
+      } else {
+        messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
+      }
     }
   })
 }
@@ -199,7 +210,7 @@ async function handleSend() {
   inputText.value = ''
 
   await chatStore.sendMessage(text)
-  scrollToBottom()
+  scrollToBottom(false)
 }
 
 /**

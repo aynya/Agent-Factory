@@ -111,16 +111,40 @@ export async function login(data: LoginRequest): Promise<ApiResponse<LoginRespon
  * 刷新 Token
  */
 export async function refreshToken(): Promise<ApiResponse<RefreshResponse>> {
-  const response = await request<RefreshResponse>('/api/auth/refresh', {
-    method: 'POST',
-  })
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      // 必须携带 credentials: 'include'，因为 refresh_token 存储在 HttpOnly Cookie 中
+      credentials: 'include',
+    })
 
-  // 刷新成功，更新 access_token
-  if (response.code === 0 && response.data?.access_token) {
-    localStorage.setItem('access_token', response.data.access_token)
+    const result: ApiResponse<RefreshResponse> = await response.json()
+
+    // 刷新成功，更新本地存储的 access_token
+    if (result.code === 0 && result.data?.access_token) {
+      localStorage.setItem('access_token', result.data.access_token)
+    } else {
+      // 如果后端返回 code != 0（比如 refresh_token 过期），视为刷新失败
+      throw new Error(result.message || 'Refresh failed')
+    }
+
+    return result
+  } catch (error) {
+    // 捕获网络错误或上面抛出的业务错误
+    console.error('RefreshToken Error:', error)
+
+    // 彻底清除 Token 并标记失败，让外部调用者处理跳转逻辑
+    localStorage.removeItem('access_token')
+    window.location.href = '/login'
+    return {
+      code: 401,
+      message: '登录已过期',
+      data: null,
+    } as ApiResponse<RefreshResponse>
   }
-
-  return response
 }
 
 /**
@@ -157,25 +181,57 @@ export function createChatStream(
     onError?: (event: { code: number; message: string }) => void
   }
 ): AbortController {
-  const token = localStorage.getItem('access_token')
   const abortController = new AbortController()
-
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'
 
-  fetch(`${API_BASE_URL}/api/chat/stream`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'text/event-stream',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    credentials: 'include',
-    body: JSON.stringify(data),
-    signal: abortController.signal,
-  })
-    .then(async response => {
+  /**
+   * 执行 SSE 请求
+   */
+  async function executeRequest(accessToken: string | null) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/chat/stream-test`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'text/event-stream',
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
+        credentials: 'include',
+        body: JSON.stringify(data),
+        signal: abortController.signal,
+      })
+
+      // 处理 403 错误（token 过期）
+      if (response.status === 403 && accessToken) {
+        try {
+          // 尝试刷新 token
+          const refreshResult = await refreshToken()
+          if (refreshResult.code === 0 && refreshResult.data?.access_token) {
+            // 使用新 token 重新请求
+            return executeRequest(refreshResult.data.access_token)
+          }
+        } catch {
+          // 刷新失败，清除 token 并跳转到登录页
+          localStorage.removeItem('access_token')
+          callbacks.onError?.({ code: 403, message: '登录已过期，请重新登录' })
+          window.location.href = '/login'
+          return
+        }
+      }
+
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+        // 尝试解析错误响应
+        try {
+          const errorText = await response.text()
+          const errorData = JSON.parse(errorText)
+          callbacks.onError?.(errorData)
+        } catch {
+          callbacks.onError?.({
+            code: response.status,
+            message: `HTTP error! status: ${response.status}`,
+          })
+        }
+        return
       }
 
       const reader = response.body?.getReader()
@@ -189,6 +245,11 @@ export function createChatStream(
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
+
+        if (abortController.signal.aborted) {
+          reader.cancel()
+          break
+        }
 
         buffer += decoder.decode(value, { stream: true })
         const events = buffer.split('\n\n')
@@ -213,20 +274,20 @@ export function createChatStream(
           if (!eventType || !dataStr) continue
 
           try {
-            const data = JSON.parse(dataStr)
+            const eventData = JSON.parse(dataStr)
 
             switch (eventType) {
               case 'start':
-                callbacks.onStart?.(data)
+                callbacks.onStart?.(eventData)
                 break
               case 'token':
-                callbacks.onToken?.(data)
+                callbacks.onToken?.(eventData)
                 break
               case 'end':
-                callbacks.onEnd?.(data)
+                callbacks.onEnd?.(eventData)
                 break
               case 'error':
-                callbacks.onError?.(data)
+                callbacks.onError?.(eventData)
                 break
             }
           } catch (error) {
@@ -234,12 +295,21 @@ export function createChatStream(
           }
         }
       }
-    })
-    .catch(error => {
-      if (error.name !== 'AbortError') {
-        callbacks.onError?.({ code: 500, message: error.message || '连接失败' })
+    } catch (error: unknown) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        // 用户主动中断，不触发错误回调
+        return
       }
-    })
+      callbacks.onError?.({
+        code: 500,
+        message: error instanceof Error ? error.message : '连接失败',
+      })
+    }
+  }
+
+  // 开始执行请求
+  const token = localStorage.getItem('access_token')
+  executeRequest(token)
 
   return abortController
 }
@@ -251,15 +321,36 @@ export async function abortChat(data: ChatAbortRequest): Promise<ApiResponse<Cha
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'
   const token = localStorage.getItem('access_token')
 
-  const response = await fetch(`${API_BASE_URL}/api/chat/abort`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    credentials: 'include',
-    body: JSON.stringify(data),
-  })
+  const makeRequest = async (accessToken: string | null) => {
+    const response = await fetch(`${API_BASE_URL}/api/chat/abort`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+      },
+      credentials: 'include',
+      body: JSON.stringify(data),
+    })
 
-  return await response.json()
+    // 处理 403 错误（token 过期）
+    if (response.status === 403 && accessToken) {
+      try {
+        // 尝试刷新 token
+        const refreshResult = await refreshToken()
+        if (refreshResult.code === 0 && refreshResult.data?.access_token) {
+          // 使用新 token 重新请求
+          return makeRequest(refreshResult.data.access_token)
+        }
+      } catch (error) {
+        // 刷新失败，清除 token 并跳转到登录页
+        localStorage.removeItem('access_token')
+        window.location.href = '/login'
+        throw error
+      }
+    }
+
+    return await response.json()
+  }
+
+  return makeRequest(token)
 }

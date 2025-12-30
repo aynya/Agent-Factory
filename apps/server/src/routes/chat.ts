@@ -21,6 +21,8 @@ const openai = new OpenAI({
 
 // 存储正在进行的流式请求，用于中断功能
 const activeStreams = new Map<string, AbortController>();
+// 存储测试接口的流式请求
+const testActiveStreams = new Map<string, AbortController>();
 
 /**
  * SSE 流式聊天接口
@@ -228,6 +230,180 @@ router.post(
 );
 
 /**
+ * SSE 流式聊天测试接口（模拟响应，不调用大模型）
+ * POST /api/chat/stream-test
+ */
+router.post(
+  '/stream-test',
+  authenticateToken,
+  async (req: Request, res: Response) => {
+    const user = (
+      req as Request & { user: { user_id: string; username: string } }
+    ).user;
+    const { agent_id, thread_id, content }: ChatStreamRequest = req.body;
+
+    // 验证请求参数
+    if (!agent_id || !thread_id || !content) {
+      res.write(`event: error\n`);
+      res.write(
+        `data: ${JSON.stringify({
+          code: 400,
+          message: 'agent_id, thread_id, and content are required',
+        })}\n\n`
+      );
+      res.end();
+      return;
+    }
+
+    // 设置 SSE 响应头
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no'); // 禁用 nginx 缓冲
+
+    const connection = await getConnection();
+    const abortController = new AbortController();
+    const streamKey = `test_${user.user_id}_${thread_id}`;
+    testActiveStreams.set(streamKey, abortController);
+
+    try {
+      // 1. 检查或创建 thread
+      const existingThreads = await query<{ id: string }>(
+        'SELECT id FROM threads WHERE id = ? AND user_id = ?',
+        [thread_id, user.user_id]
+      );
+
+      if (existingThreads.length === 0) {
+        // 创建新 thread
+        await query(
+          'INSERT INTO threads (id, user_id, agent_id, title) VALUES (?, ?, ?, ?)',
+          [thread_id, user.user_id, agent_id, content.substring(0, 255)]
+        );
+      } else {
+        // 更新 thread 的更新时间
+        await query(
+          'UPDATE threads SET updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+          [thread_id]
+        );
+      }
+
+      // 2. 保存用户消息到数据库
+      const userMessageId = generateUUID();
+      await query(
+        'INSERT INTO messages (id, thread_id, role, content, token) VALUES (?, ?, ?, ?, ?)',
+        [userMessageId, thread_id, 'user', content, 0]
+      );
+
+      // 3. 获取 Agent 配置（可选，用于测试）
+      const agents = await query<{ system_prompt: string }>(
+        'SELECT system_prompt FROM agents WHERE id = ?',
+        [agent_id]
+      );
+
+      const agent = agents[0];
+      if (!agent) {
+        res.write(`event: error\n`);
+        res.write(
+          `data: ${JSON.stringify({ code: 404, message: 'Agent not found' })}\n\n`
+        );
+        res.end();
+        return;
+      }
+
+      // 4. 生成 assistant 消息 ID
+      const assistantMessageId = generateUUID();
+      const createdAt = new Date().toISOString();
+
+      // 5. 发送 start 事件
+      res.write(`event: start\n`);
+      res.write(
+        `data: ${JSON.stringify({
+          messageId: assistantMessageId,
+          role: 'assistant',
+          createdAt,
+        })}\n\n`
+      );
+
+      // 6. 模拟 AI 回复内容（硬编码）
+      const mockResponse = `你好！我收到了你的消息："${content}"。\n\n这是一个测试接口，用于模拟 AI 回复。我可以帮你测试流式响应功能，包括：\n\n1. **流式输出**：逐字符显示回复内容\n2. **Markdown 渲染**：支持代码块、列表等格式\n3. **中断功能**：可以随时停止生成\n\n如果你有任何问题，随时告诉我！你好！我收到了你的消息："${content}"。\n\n这是一个测试接口，用于模拟 AI 回复。我可以帮你测试流式响应功能，包括：\n\n1. **流式输出**：逐字符显示回复内容\n2. **Markdown 渲染**：支持代码块、列表等格式\n3. **中断功能**：可以随时停止生成\n\n如果你有任何问题，随时告诉我！你好！我收到了你的消息："${content}"。\n\n这是一个测试接口，用于模拟 AI 回复。我可以帮你测试流式响应功能，包括：\n\n1. **流式输出**：逐字符显示回复内容\n2. **Markdown 渲染**：支持代码块、列表等格式\n3. **中断功能**：可以随时停止生成\n\n如果你有任何问题，随时告诉我！你好！我收到了你的消息："${content}"。\n\n这是一个测试接口，用于模拟 AI 回复。我可以帮你测试流式响应功能，包括：\n\n1. **流式输出**：逐字符显示回复内容\n2. **Markdown 渲染**：支持代码块、列表等格式\n3. **中断功能**：可以随时停止生成\n\n如果你有任何问题，随时告诉我！你好！我收到了你的消息："${content}"。\n\n这是一个测试接口，用于模拟 AI 回复。我可以帮你测试流式响应功能，包括：\n\n1. **流式输出**：逐字符显示回复内容\n2. **Markdown 渲染**：支持代码块、列表等格式\n3. **中断功能**：可以随时停止生成\n\n如果你有任何问题，随时告诉我！`;
+
+      // 7. 模拟流式输出（逐字符发送）
+      const delay = (ms: number) =>
+        new Promise(resolve => setTimeout(resolve, ms));
+
+      let fullContent = '';
+
+      for (let i = 0; i < mockResponse.length; i++) {
+        if (abortController.signal.aborted) {
+          break;
+        }
+
+        const char = mockResponse[i];
+        fullContent += char;
+
+        // 发送 token 事件
+        res.write(`event: token\n`);
+        res.write(
+          `data: ${JSON.stringify({
+            messageId: assistantMessageId,
+            content: char,
+          })}\n\n`
+        );
+
+        // 模拟网络延迟（每 20-50ms 发送一个字符）
+        await delay(Math.random() * 30 + 20);
+      }
+
+      // 8. 保存 assistant 回复到数据库
+      if (fullContent && !abortController.signal.aborted) {
+        // 模拟 token 使用量（根据内容长度估算）
+        const estimatedTokens = Math.ceil(fullContent.length / 4);
+
+        await query(
+          'INSERT INTO messages (id, thread_id, role, content, token) VALUES (?, ?, ?, ?, ?)',
+          [assistantMessageId, thread_id, 'assistant', fullContent, estimatedTokens]
+        );
+
+        // 9. 发送 end 事件
+        res.write(`event: end\n`);
+        res.write(
+          `data: ${JSON.stringify({
+            messageId: assistantMessageId,
+            role: 'assistant',
+            status: 'usage',
+            totalTokens: estimatedTokens,
+          })}\n\n`
+        );
+      }
+
+      res.end();
+    } catch (error: unknown) {
+      console.error('Test chat stream error:', error);
+
+      // 如果是中断错误，不发送错误事件
+      if (error instanceof Error && error.name === 'AbortError') {
+        res.end();
+        return;
+      }
+
+      // 发送错误事件
+      res.write(`event: error\n`);
+      res.write(
+        `data: ${JSON.stringify({
+          code: 500,
+          message: error instanceof Error ? error.message : '服务器内部错误',
+        })}\n\n`
+      );
+      res.end();
+    } finally {
+      // 清理资源
+      testActiveStreams.delete(streamKey);
+      connection.release();
+    }
+  }
+);
+
+/**
  * 中断聊天接口
  * POST /api/chat/abort
  */
@@ -254,7 +430,12 @@ router.post(
     }
 
     const streamKey = `${user.user_id}_${thread_id}`;
+    const testStreamKey = `test_${user.user_id}_${thread_id}`;
+    
+    // 尝试中断正常流式请求
     const abortController = activeStreams.get(streamKey);
+    // 尝试中断测试流式请求
+    const testAbortController = testActiveStreams.get(testStreamKey);
 
     if (abortController) {
       abortController.abort();
@@ -263,6 +444,17 @@ router.post(
       res.json({
         code: 0,
         message: 'interrupt success',
+        data: {
+          thread_id: thread_id,
+        },
+      });
+    } else if (testAbortController) {
+      testAbortController.abort();
+      testActiveStreams.delete(testStreamKey);
+
+      res.json({
+        code: 0,
+        message: 'interrupt success (test)',
         data: {
           thread_id: thread_id,
         },
