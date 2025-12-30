@@ -139,7 +139,7 @@
 <script setup lang="ts">
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage, type FormInstance, type FormRules, type RuleItem } from 'element-plus'
+import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { User, Lock, ChatDotRound, Check } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 
@@ -156,7 +156,7 @@ const registerForm = reactive({
 })
 
 const validateConfirmPassword = (
-  _rule: RuleItem,
+  _rule: unknown,
   value: string,
   callback: (error?: Error) => void
 ) => {
