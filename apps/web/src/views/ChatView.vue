@@ -1,5 +1,5 @@
 <template>
-  <div class="min-h-screen bg-gray-50 flex flex-col">
+  <div class="h-screen bg-gray-50 flex flex-col overflow-hidden">
     <!-- 顶部导航栏 -->
     <header class="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-50">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -17,7 +17,9 @@
 
           <div class="flex items-center space-x-4">
             <el-button type="primary" size="small" @click="handleNewChat">
-              <el-icon class="mr-1"><Plus /></el-icon>
+              <el-icon class="mr-1">
+                <Plus />
+              </el-icon>
               新会话
             </el-button>
             <div v-if="authStore.user" class="flex items-center space-x-3">
@@ -29,7 +31,9 @@
               </span>
             </div>
             <el-button type="danger" size="small" @click="handleLogout">
-              <el-icon class="mr-1"><SwitchButton /></el-icon>
+              <el-icon class="mr-1">
+                <SwitchButton />
+              </el-icon>
               退出登录
             </el-button>
           </div>
@@ -37,58 +41,69 @@
       </div>
     </header>
 
-    <!-- 主内容区域 -->
-    <main class="flex-1 flex flex-col max-w-4xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6">
-      <!-- 消息列表 -->
-      <div ref="messagesContainer" class="flex-1 overflow-y-auto mb-4 space-y-6 messages-container">
-        <div v-if="chatStore.messages.length === 0" class="flex items-center justify-center h-full">
-          <div class="text-center py-12">
-            <div
-              class="inline-flex items-center justify-center w-20 h-20 bg-blue-100 rounded-full mb-6"
-            >
-              <el-icon :size="40" class="text-blue-600">
-                <ChatDotRound />
-              </el-icon>
+    <div ref="messagesContainer" class="flex-1 overflow-y-auto messages-container">
+      <!-- 主内容区域 -->
+      <main class="flex-1 flex flex-col max-w-4xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6">
+        <!-- 消息列表 -->
+        <div class="flex-1 min-h-0 mb-4 space-y-6">
+          <div
+            v-if="chatStore.messages.length === 0"
+            class="flex items-center justify-center h-full"
+          >
+            <div class="text-center py-12">
+              <div
+                class="inline-flex items-center justify-center w-20 h-20 bg-blue-100 rounded-full mb-6"
+              >
+                <el-icon :size="40" class="text-blue-600">
+                  <ChatDotRound />
+                </el-icon>
+              </div>
+              <h3 class="text-xl font-semibold text-gray-900 mb-2">开始对话</h3>
+              <p class="text-gray-500 max-w-md mx-auto">输入消息开始与 AI 助手对话</p>
             </div>
-            <h3 class="text-xl font-semibold text-gray-900 mb-2">开始对话</h3>
-            <p class="text-gray-500 max-w-md mx-auto">输入消息开始与 AI 助手对话</p>
           </div>
-        </div>
 
-        <div
-          v-for="message in chatStore.messages"
-          :key="message.id"
-          class="flex gap-4"
-          :class="message.role === 'user' ? 'justify-end' : 'justify-start'"
-        >
-          <!-- 用户消息 -->
-          <div v-if="message.role === 'user'" class="flex gap-3 max-w-[80%]">
-            <div class="flex-1">
-              <div class="bg-blue-600 text-white rounded-2xl rounded-tr-sm px-4 py-3 shadow-sm">
-                <p class="text-sm whitespace-pre-wrap break-words">{{ message.content }}</p>
+          <div
+            v-for="message in chatStore.messages"
+            :key="message.id"
+            class="flex gap-4"
+            :class="message.role === 'user' ? 'justify-end' : 'justify-start'"
+          >
+            <!-- 用户消息 -->
+            <div v-if="message.role === 'user'" class="flex gap-3 max-w-[80%]">
+              <div class="flex-1">
+                <div class="bg-blue-600 text-white rounded-2xl rounded-tr-sm px-4 py-3 shadow-sm">
+                  <p class="text-sm whitespace-pre-wrap break-words">{{ message.content }}</p>
+                </div>
               </div>
             </div>
-          </div>
 
-          <!-- AI 回复 -->
-          <div v-else class="flex gap-3 w-[100%]">
-            <div class="flex-1">
-              <div class="rounded-2xl rounded-tl-sm px-4 py-3">
-                <div
-                  v-if="message.content"
-                  class="prose prose-sm max-w-none markdown-body"
-                  v-html="renderMarkdown(message.content)"
-                ></div>
-                <div v-else-if="message.isStreaming" class="flex items-center gap-2 text-gray-400">
-                  <span class="inline-block w-2 h-2 bg-gray-400 rounded-full animate-pulse"></span>
-                  <span class="text-sm">AI 正在思考...</span>
+            <!-- AI 回复 -->
+            <div v-else class="flex gap-3 w-[100%]">
+              <div class="flex-1">
+                <div class="rounded-2xl rounded-tl-sm px-4 py-3">
+                  <div
+                    v-if="message.content"
+                    class="prose prose-sm max-w-none markdown-body"
+                    v-html="renderMarkdown(message.content)"
+                  ></div>
+                  <div
+                    v-else-if="message.isStreaming"
+                    class="flex items-center gap-2 text-gray-400"
+                  >
+                    <span
+                      class="inline-block w-2 h-2 bg-gray-400 rounded-full animate-pulse"
+                    ></span>
+                    <span class="text-sm">AI 正在思考...</span>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
-
+      </main>
+    </div>
+    <footer class="flex flex-col max-w-4xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6">
       <!-- 输入区域 -->
       <div class="bg-white rounded-2xl border border-gray-200 shadow-lg p-4">
         <div class="flex items-end gap-3">
@@ -129,7 +144,7 @@
         </div>
         <div class="mt-2 text-xs text-gray-400 text-center">按 Ctrl+Enter 或 Cmd+Enter 发送</div>
       </div>
-    </main>
+    </footer>
   </div>
 </template>
 
