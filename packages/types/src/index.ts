@@ -75,3 +75,48 @@ export interface PaginationResult<T> {
   pageSize: number;
   totalPages: number;
 }
+
+// Chat types
+export interface ChatStreamRequest {
+  agent_id: string;
+  thread_id: string;
+  content: string;
+}
+
+export interface ChatAbortRequest {
+  agent_id: string;
+  thread_id: string;
+}
+
+export interface ChatAbortResponse {
+  thread_id: string;
+}
+
+// SSE Event types
+export interface SSEStartEvent {
+  messageId: string;
+  role: 'assistant';
+  createdAt: string;
+}
+
+export interface SSEInfoEvent {
+  status: string;
+  content?: string;
+}
+
+export interface SSETokenEvent {
+  messageId: string;
+  content: string;
+}
+
+export interface SSEEndEvent {
+  messageId: string;
+  role: 'assistant';
+  status: 'usage';
+  totalTokens: number;
+}
+
+export interface SSEErrorEvent {
+  code: number;
+  message: string;
+}

@@ -5,6 +5,7 @@ import cookieParser from 'cookie-parser';
 import { checkDatabaseConnection } from './config/db.js';
 import { initDatabase } from './config/init-db.js';
 import authRoutes from './routes/auth.js';
+import chatRoutes from './routes/chat.js';
 
 // Load environment variables
 dotenv.config();
@@ -24,6 +25,7 @@ app.use(cookieParser());
 
 // 路由注册
 app.use('/api/auth', authRoutes);
+app.use('/api/chat', chatRoutes);
 
 // 健康检查接口
 app.get('/health', async (req, res) => {
