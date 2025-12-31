@@ -8,7 +8,7 @@
     </div>
 
     <!-- 会话列表 -->
-    <div class="flex-1 overflow-y-auto">
+    <div class="flex-1 overflow-y-hidden hover:overflow-y-auto messages-container">
       <div v-if="chatStore.isLoadingThreads" class="p-4 text-center text-gray-400">
         <el-icon class="animate-spin mb-2">
           <Loading />
@@ -42,9 +42,6 @@
               <div class="text-sm font-medium truncate">
                 {{ thread.title || '未命名会话' }}
               </div>
-              <div class="text-xs text-gray-400 mt-0.5">
-                {{ formatTime(thread.updatedAt) }}
-              </div>
             </div>
           </div>
 
@@ -72,32 +69,6 @@ import { useChatStore } from '@/stores/chat'
 const router = useRouter()
 const route = useRoute()
 const chatStore = useChatStore()
-
-/**
- * 格式化时间
- */
-function formatTime(time: string): string {
-  const date = new Date(time)
-  const now = new Date()
-  const diff = now.getTime() - date.getTime()
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24))
-
-  if (days === 0) {
-    // 今天：显示时间
-    const hours = date.getHours().toString().padStart(2, '0')
-    const minutes = date.getMinutes().toString().padStart(2, '0')
-    return `${hours}:${minutes}`
-  } else if (days === 1) {
-    return '昨天'
-  } else if (days < 7) {
-    return `${days}天前`
-  } else {
-    // 超过7天：显示日期
-    const month = (date.getMonth() + 1).toString().padStart(2, '0')
-    const day = date.getDate().toString().padStart(2, '0')
-    return `${month}-${day}`
-  }
-}
 
 /**
  * 选择会话
@@ -161,8 +132,32 @@ async function handleDeleteThread(threadId: string) {
 </script>
 
 <style scoped>
+.messages-container {
+  /* 关键：预留滚动条空间，防止挤压 */
+  scrollbar-gutter: stable;
+  /* 默认隐藏溢出，防止非 hover 状态下产生滚动 */
+  overflow-y: hidden;
+}
+
+.messages-container:hover {
+  /* 仅在 hover 时允许滚动 */
+  overflow-y: auto;
+}
 /* 滚动条样式 */
-:deep(.el-scrollbar__wrap) {
-  overflow-x: hidden;
+.messages-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.messages-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.messages-container::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+.messages-container::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }
 </style>
