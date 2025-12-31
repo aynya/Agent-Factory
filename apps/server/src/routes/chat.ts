@@ -10,6 +10,7 @@ import type {
   ChatAbortResponse,
   ApiResponse,
   Thread,
+  Message,
 } from '@monorepo/types';
 
 const router: Router = Router();
@@ -443,6 +444,72 @@ router.get(
       });
     } catch (error: unknown) {
       console.error('Get threads error:', error);
+      res.status(500).json({
+        code: 500,
+        message: error instanceof Error ? error.message : '服务器内部错误',
+        data: null,
+      });
+    }
+  }
+);
+
+/**
+ * 获取历史消息接口
+ * GET /api/chat/message/:thread_id
+ */
+router.get(
+  '/message/:thread_id',
+  authenticateToken,
+  async (req: Request, res: Response<ApiResponse<Message[]>>) => {
+    const user = (
+      req as Request & { user: { user_id: string; username: string } }
+    ).user;
+    const { thread_id } = req.params;
+
+    try {
+      // 验证 thread_id 是否属于当前用户
+      const threads = await query<{ id: string }>(
+        'SELECT id FROM threads WHERE id = ? AND user_id = ?',
+        [thread_id, user.user_id]
+      );
+
+      if (threads.length === 0) {
+        res.status(404).json({
+          code: 404,
+          message: 'Thread not found or access denied',
+          data: null,
+        });
+        return;
+      }
+
+      // 查询该会话的所有消息，按创建时间升序排列
+      const messages = await query<{
+        id: string;
+        thread_id: string;
+        role: 'user' | 'assistant';
+        content: string;
+        created_at: string;
+      }>(
+        'SELECT id, thread_id, role, content, created_at FROM messages WHERE thread_id = ? ORDER BY created_at ASC',
+        [thread_id]
+      );
+
+      // 转换为前端需要的格式
+      const messageList: Message[] = messages.map(message => ({
+        id: message.id,
+        thread_id: message.thread_id,
+        role: message.role,
+        content: message.content,
+        created_at: message.created_at,
+      }));
+
+      res.json({
+        code: 0,
+        message: 'ok',
+        data: messageList,
+      });
+    } catch (error: unknown) {
+      console.error('Get messages error:', error);
       res.status(500).json({
         code: 500,
         message: error instanceof Error ? error.message : '服务器内部错误',
