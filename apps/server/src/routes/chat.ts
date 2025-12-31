@@ -520,6 +520,63 @@ router.get(
 );
 
 /**
+ * 删除会话接口
+ * DELETE /api/chat/thread/:thread_id
+ */
+router.delete(
+  '/thread/:thread_id',
+  authenticateToken,
+  async (req: Request, res: Response<ApiResponse<null>>) => {
+    const user = (
+      req as Request & { user: { user_id: string; username: string } }
+    ).user;
+    const { thread_id } = req.params;
+
+    try {
+      // 验证 thread_id 是否属于当前用户
+      const threads = await query<{ id: string }>(
+        'SELECT id FROM threads WHERE id = ? AND user_id = ?',
+        [thread_id, user.user_id]
+      );
+
+      if (threads.length === 0) {
+        res.status(404).json({
+          code: 404,
+          message: 'Thread not found or access denied',
+          data: null,
+        });
+        return;
+      }
+
+      // 删除会话（由于外键约束 ON DELETE CASCADE，关联的消息会自动删除）
+      await query('DELETE FROM threads WHERE id = ? AND user_id = ?', [
+        thread_id,
+        user.user_id,
+      ]);
+
+      // 清理可能存在的流式请求
+      const streamKey = `${user.user_id}_${thread_id}`;
+      const testStreamKey = `test_${user.user_id}_${thread_id}`;
+      activeStreams.delete(streamKey);
+      testActiveStreams.delete(testStreamKey);
+
+      res.json({
+        code: 0,
+        message: 'ok',
+        data: null,
+      });
+    } catch (error: unknown) {
+      console.error('Delete thread error:', error);
+      res.status(500).json({
+        code: 500,
+        message: error instanceof Error ? error.message : '服务器内部错误',
+        data: null,
+      });
+    }
+  }
+);
+
+/**
  * 中断聊天接口
  * POST /api/chat/abort
  */
