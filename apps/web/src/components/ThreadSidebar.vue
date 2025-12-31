@@ -1,14 +1,44 @@
 <template>
-  <div class="h-full flex flex-col bg-white border-r border-gray-200">
-    <!-- 头部：新会话按钮 -->
-    <div class="p-4 border-b border-gray-200">
-      <el-button type="primary" class="w-full" :icon="Plus" @click="handleNewChat">
-        新会话
-      </el-button>
+  <div
+    class="h-full flex flex-col bg-white border-r border-gray-200 transition-all duration-300"
+    :class="isCollapsed ? 'w-16' : 'w-64'"
+  >
+    <!-- 头部：展开/收纳按钮和新会话按钮 -->
+    <div
+      class="header-section transition-all duration-300 p-3 flex flex-col items-center"
+      :class="isCollapsed ? 'collapsed' : 'expanded'"
+    >
+      <div class="menu-wrapper w-full flex mb-4">
+        <el-button
+          :icon="isCollapsed ? Menu : Fold"
+          text
+          circle
+          class="menu-btn !text-gray-600 hover:!bg-gray-100"
+          @click="toggleCollapse"
+        />
+      </div>
+
+      <div class="chat-btn-wrapper w-full flex justify-center">
+        <button
+          class="gemini-btn group"
+          :class="{ 'is-collapsed': isCollapsed }"
+          @click="handleNewChat"
+        >
+          <div class="icon-box">
+            <el-icon :size="20">
+              <Plus />
+            </el-icon>
+          </div>
+          <span class="btn-text">新会话</span>
+        </button>
+      </div>
     </div>
 
     <!-- 会话列表 -->
-    <div class="flex-1 overflow-y-hidden hover:overflow-y-auto messages-container">
+    <div
+      v-if="!isCollapsed"
+      class="flex-1 overflow-y-hidden hover:overflow-y-auto messages-container"
+    >
       <div v-if="chatStore.isLoadingThreads" class="p-4 text-center text-gray-400">
         <el-icon class="animate-spin mb-2">
           <Loading />
@@ -61,14 +91,25 @@
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessageBox, ElMessage } from 'element-plus'
-import { Plus, ChatDotRound, Delete, Loading } from '@element-plus/icons-vue'
+import { Plus, ChatDotRound, Delete, Loading, Menu, Fold } from '@element-plus/icons-vue'
 import { useChatStore } from '@/stores/chat'
 
 const router = useRouter()
 const route = useRoute()
 const chatStore = useChatStore()
+
+// 侧边栏收纳状态
+const isCollapsed = ref(false)
+
+/**
+ * 切换侧边栏展开/收纳状态
+ */
+function toggleCollapse() {
+  isCollapsed.value = !isCollapsed.value
+}
 
 /**
  * 选择会话
@@ -143,6 +184,7 @@ async function handleDeleteThread(threadId: string) {
   /* 仅在 hover 时允许滚动 */
   overflow-y: auto;
 }
+
 /* 滚动条样式 */
 .messages-container::-webkit-scrollbar {
   width: 6px;
@@ -159,5 +201,84 @@ async function handleDeleteThread(threadId: string) {
 
 .messages-container::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
+}
+
+.header-section {
+  --sidebar-collapsed-width: 64px;
+  --btn-size: 40px;
+  /* 收起时的圆直径 */
+}
+
+/* 菜单按钮固定大小 */
+.menu-btn {
+  width: var(--btn-size) !important;
+  height: var(--btn-size) !important;
+  font-size: 20px !important;
+}
+
+/* 仿 Gemini 按钮逻辑 */
+.gemini-btn {
+  display: flex;
+  align-items: center;
+  height: var(--btn-size);
+  border: none;
+  cursor: pointer;
+  background-color: #c2e7ff;
+  /* Gemini 蓝色 */
+  color: #041e49;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+  outline: none;
+}
+
+/* 展开状态：胶囊型 */
+.expanded .gemini-btn {
+  width: 100%;
+  /* 充满父容器 */
+  border-radius: 12px;
+  padding: 0 12px;
+  /* 初始左间距 */
+}
+
+/* 收起状态：圆形 */
+.is-collapsed {
+  width: var(--btn-size) !important;
+  border-radius: 50% !important;
+  padding: 0 !important;
+  justify-content: center;
+  /* 图标绝对居中 */
+}
+
+/* 图标盒子：固定宽度，确保位置不抖动 */
+.icon-box {
+  width: var(--btn-size);
+  height: var(--btn-size);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* 文字过渡动画 */
+.btn-text {
+  margin-left: 4px;
+  font-weight: 500;
+  white-space: nowrap;
+  opacity: 1;
+  transition:
+    opacity 0.2s ease,
+    transform 0.3s ease;
+}
+
+.is-collapsed .btn-text {
+  opacity: 0;
+  width: 0;
+  margin: 0;
+  pointer-events: none;
+}
+
+.gemini-btn:hover {
+  background-color: #b3d9f2;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 </style>

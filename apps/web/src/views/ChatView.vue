@@ -1,7 +1,7 @@
 <template>
   <div class="h-screen bg-gray-50 flex overflow-hidden">
     <!-- 左侧会话列表侧边栏 -->
-    <div class="w-64 flex-shrink-0 h-full">
+    <div class="flex-shrink-0 h-full">
       <ThreadSidebar />
     </div>
 
