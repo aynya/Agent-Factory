@@ -8,10 +8,11 @@
     <!-- 右侧主内容区域 -->
     <div class="flex-1 flex flex-col overflow-hidden">
       <!-- 顶部导航栏 -->
-      <header class="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-50">
+      <header class="sticky top-0 z-50">
         <div class="px-4 sm:px-6 lg:px-8">
-          <div class="flex items-center justify-between h-16">
-            <div class="flex items-center space-x-3">
+          <div class="flex items-center h-16 relative">
+            <!-- 左侧：Logo 和平台名 -->
+            <div class="flex items-center space-x-3 flex-shrink-0">
               <div
                 class="w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center"
               >
@@ -22,7 +23,20 @@
               <h1 class="text-xl font-bold text-gray-900">AI Agent Platform</h1>
             </div>
 
-            <div class="flex items-center space-x-4">
+            <!-- 中间：Thread 标题（居中显示） -->
+            <div
+              class="flex-1 flex items-center justify-center absolute inset-0 pointer-events-none"
+            >
+              <h2
+                v-if="currentThreadTitle"
+                class="text-base font-medium text-gray-900 truncate max-w-md pointer-events-auto"
+              >
+                {{ currentThreadTitle }}
+              </h2>
+            </div>
+
+            <!-- 右侧：用户信息和退出按钮 -->
+            <div class="flex items-center space-x-4 flex-shrink-0 ml-auto">
               <div v-if="authStore.user" class="flex items-center space-x-3">
                 <el-avatar :size="32" :src="authStore.user.avatar">
                   {{ authStore.user.username.charAt(0).toUpperCase() }}
@@ -203,7 +217,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick, watch, onMounted } from 'vue'
+import { ref, computed, nextTick, watch, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessageBox, ElMessage } from 'element-plus'
 import { ChatDotRound, SwitchButton, Promotion, Close } from '@element-plus/icons-vue'
@@ -219,6 +233,19 @@ const chatStore = useChatStore()
 
 const inputText = ref('')
 const messagesContainer = ref<HTMLElement | null>(null)
+
+/**
+ * 获取当前 Thread 的标题
+ */
+const currentThreadTitle = computed(() => {
+  const threadId = route.params.threadId
+  if (!threadId || typeof threadId !== 'string') {
+    return null
+  }
+
+  const thread = chatStore.threads.find(t => t.threadId === threadId)
+  return thread?.title || null
+})
 
 // 初始化 markdown-it
 const md = new MarkdownIt({
