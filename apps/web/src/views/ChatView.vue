@@ -35,22 +35,45 @@
               </h2>
             </div>
 
-            <!-- 右侧：用户信息和退出按钮 -->
-            <div class="flex items-center space-x-4 flex-shrink-0 ml-auto">
-              <div v-if="authStore.user" class="flex items-center space-x-3">
-                <el-avatar :size="32" :src="authStore.user.avatar">
-                  {{ authStore.user.username.charAt(0).toUpperCase() }}
-                </el-avatar>
-                <span class="text-sm text-gray-700 font-medium hidden sm:inline">
-                  {{ authStore.user.username }}
-                </span>
-              </div>
-              <el-button type="danger" size="small" @click="handleLogout">
-                <el-icon class="mr-1">
-                  <SwitchButton />
-                </el-icon>
-                退出登录
-              </el-button>
+            <!-- 右侧：用户信息下拉菜单 -->
+            <div class="flex items-center flex-shrink-0 ml-auto">
+              <el-dropdown
+                v-if="authStore.user"
+                trigger="click"
+                placement="bottom-end"
+                @command="handleCommand"
+              >
+                <div
+                  class="flex items-center space-x-2 cursor-pointer hover:opacity-80 transition-opacity"
+                >
+                  <el-avatar :size="32" :src="authStore.user.avatar">
+                    {{ authStore.user.username.charAt(0).toUpperCase() }}
+                  </el-avatar>
+                  <span class="text-sm text-gray-700 font-medium hidden sm:inline">
+                    {{ authStore.user.username }}
+                  </span>
+                  <el-icon class="text-gray-400 hidden sm:inline">
+                    <ArrowDown />
+                  </el-icon>
+                </div>
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item disabled>
+                      <div class="flex flex-col">
+                        <span class="text-sm font-medium text-gray-900">
+                          {{ authStore.user.username }}
+                        </span>
+                      </div>
+                    </el-dropdown-item>
+                    <el-dropdown-item divided command="logout">
+                      <el-icon class="mr-2">
+                        <SwitchButton />
+                      </el-icon>
+                      退出登录
+                    </el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
             </div>
           </div>
         </div>
@@ -220,7 +243,7 @@
 import { ref, computed, nextTick, watch, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessageBox, ElMessage } from 'element-plus'
-import { ChatDotRound, SwitchButton, Promotion, Close } from '@element-plus/icons-vue'
+import { ChatDotRound, SwitchButton, Promotion, Close, ArrowDown } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { useChatStore } from '@/stores/chat'
 import ThreadSidebar from '@/components/ThreadSidebar.vue'
@@ -321,6 +344,15 @@ async function handleSend() {
 async function handleInterrupt() {
   await chatStore.interruptGeneration()
   ElMessage.info('已停止生成')
+}
+
+/**
+ * 处理下拉菜单命令
+ */
+async function handleCommand(command: string) {
+  if (command === 'logout') {
+    await handleLogout()
+  }
 }
 
 /**
