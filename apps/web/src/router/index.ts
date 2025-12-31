@@ -26,6 +26,12 @@ const router = createRouter({
       component: () => import('../views/ChatView.vue'),
       meta: { requiresAuth: true },
     },
+    {
+      path: '/chat/:threadId',
+      name: 'chat-thread',
+      component: () => import('../views/ChatView.vue'),
+      meta: { requiresAuth: true },
+    },
   ],
 })
 

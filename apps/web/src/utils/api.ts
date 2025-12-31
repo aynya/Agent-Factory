@@ -9,6 +9,8 @@ import type {
   ChatStreamRequest,
   ChatAbortRequest,
   ChatAbortResponse,
+  Thread,
+  Message,
 } from '@monorepo/types'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'
@@ -353,4 +355,31 @@ export async function abortChat(data: ChatAbortRequest): Promise<ApiResponse<Cha
   }
 
   return makeRequest(token)
+}
+
+/**
+ * 获取会话列表
+ */
+export async function getThreads(): Promise<ApiResponse<Thread[]>> {
+  return request<Thread[]>('/api/chat/threads', {
+    method: 'GET',
+  })
+}
+
+/**
+ * 获取历史消息
+ */
+export async function getMessages(threadId: string): Promise<ApiResponse<Message[]>> {
+  return request<Message[]>(`/api/chat/message/${threadId}`, {
+    method: 'GET',
+  })
+}
+
+/**
+ * 删除会话
+ */
+export async function deleteThread(threadId: string): Promise<ApiResponse<null>> {
+  return request<null>(`/api/chat/thread/${threadId}`, {
+    method: 'DELETE',
+  })
 }
