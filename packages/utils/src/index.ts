@@ -1,4 +1,5 @@
 export * from './date.js';
+export * from './markdown.js';
 
 /**
  * Format number with thousand separators
