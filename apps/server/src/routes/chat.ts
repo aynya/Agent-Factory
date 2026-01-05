@@ -363,7 +363,13 @@ router.post(
 
         await query(
           'INSERT INTO messages (id, thread_id, role, content, token) VALUES (?, ?, ?, ?, ?)',
-          [assistantMessageId, thread_id, 'assistant', fullContent, estimatedTokens]
+          [
+            assistantMessageId,
+            thread_id,
+            'assistant',
+            fullContent,
+            estimatedTokens,
+          ]
         );
 
         // 9. 发送 end 事件
@@ -604,7 +610,7 @@ router.post(
 
     const streamKey = `${user.user_id}_${thread_id}`;
     const testStreamKey = `test_${user.user_id}_${thread_id}`;
-    
+
     // 尝试中断正常流式请求
     const abortController = activeStreams.get(streamKey);
     // 尝试中断测试流式请求
