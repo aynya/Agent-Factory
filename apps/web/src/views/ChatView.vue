@@ -79,7 +79,11 @@
         </div>
       </header>
 
-      <div ref="messagesContainer" class="flex-1 flex overflow-y-auto messages-container">
+      <div
+        ref="messagesContainer"
+        @click="handleGlobalClick"
+        class="flex-1 flex overflow-y-auto messages-container"
+      >
         <!-- 主内容区域 -->
         <main class="flex-1 flex flex-col max-w-4xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6">
           <!-- 消息列表 -->
@@ -498,70 +502,50 @@ md.renderer.rules.fence = function (tokens, idx, _options, _env, _self) {
 function renderMarkdown(text: string): string {
   const html = md.render(text)
   // 渲染后初始化复制按钮
-  nextTick(() => {
-    initCopyButtons()
-  })
   return html
 }
 
 /**
  * 初始化代码块的复制按钮
  */
-function initCopyButtons() {
-  const copyButtons = document.querySelectorAll('.code-block-copy-btn')
-  copyButtons.forEach(button => {
-    // 检查是否已经添加过事件监听器
-    if ((button as HTMLElement).dataset.listenerAdded === 'true') {
-      return
-    }
+const handleGlobalClick = async (e: MouseEvent) => {
+  // 使用 closest 寻找点击的目标按钮
+  const btn = (e.target as HTMLElement).closest('.code-block-copy-btn') as HTMLElement
+  if (!btn || btn.classList.contains('copied')) return // 如果正在“已复制”状态，忽略重复点击
 
-    // 标记为已添加监听器
-    ;(button as HTMLElement).dataset.listenerAdded = 'true'
+  const codeContent = btn.getAttribute('data-code-content')
+  if (!codeContent) return
 
-    // 添加事件监听器
-    button.addEventListener('click', async e => {
-      e.preventDefault()
-      e.stopPropagation()
+  try {
+    // 解码并复制
+    const textarea = document.createElement('textarea')
+    textarea.innerHTML = codeContent
+    await navigator.clipboard.writeText(textarea.value)
 
-      const codeContent = button.getAttribute('data-code-content')
-      if (!codeContent) return
+    // --- 状态切换逻辑 ---
+    // 这里直接使用局部变量，每个按钮点击都有自己的闭包空间，互不干扰
+    const copyIcon = btn.querySelector('.copy-icon') as HTMLElement
+    const checkIcon = btn.querySelector('.check-icon') as HTMLElement
+    const copyText = btn.querySelector('.copy-text') as HTMLElement
 
-      try {
-        // 解码 HTML 实体
-        const textarea = document.createElement('textarea')
-        textarea.innerHTML = codeContent
-        const decodedContent = textarea.value
+    btn.classList.add('copied')
+    if (copyIcon) copyIcon.style.display = 'none'
+    if (checkIcon) checkIcon.style.display = 'block'
+    if (copyText) copyText.textContent = '已复制'
 
-        // 复制到剪贴板
-        await navigator.clipboard.writeText(decodedContent)
+    // 独立定时器，互不影响
+    setTimeout(() => {
+      btn.classList.remove('copied')
+      if (copyIcon) copyIcon.style.display = 'block'
+      if (checkIcon) checkIcon.style.display = 'none'
+      if (copyText) copyText.textContent = '复制'
+    }, 2000)
 
-        // 更新按钮状态
-        const copyIcon = button.querySelector('.copy-icon') as HTMLElement
-        const checkIcon = button.querySelector('.check-icon') as HTMLElement
-        const copyText = button.querySelector('.copy-text') as HTMLElement
-
-        if (copyIcon && checkIcon && copyText) {
-          copyIcon.style.display = 'none'
-          checkIcon.style.display = 'block'
-          copyText.textContent = '已复制'
-          button.classList.add('copied')
-
-          // 2 秒后恢复
-          setTimeout(() => {
-            copyIcon.style.display = 'block'
-            checkIcon.style.display = 'none'
-            copyText.textContent = '复制'
-            button.classList.remove('copied')
-          }, 2000)
-        }
-
-        ElMessage.success('代码已复制到剪贴板')
-      } catch (err) {
-        console.error('复制失败:', err)
-        ElMessage.error('复制失败，请手动复制')
-      }
-    })
-  })
+    ElMessage.success('代码已复制')
+  } catch (err) {
+    console.error('复制失败', err)
+    ElMessage.error('复制失败')
+  }
 }
 
 /**
@@ -679,10 +663,6 @@ watch(
   () => chatStore.messages,
   () => {
     scrollToBottom()
-    // 初始化复制按钮
-    nextTick(() => {
-      initCopyButtons()
-    })
   },
   { deep: true }
 )
