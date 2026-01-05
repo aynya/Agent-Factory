@@ -101,7 +101,6 @@
                   {{ authStore.user?.username || '你好' }}, 你好
                 </h2>
                 <p class="text-lg text-gray-500 mb-8">需要我为你做些什么?</p>
-
                 <!-- 快捷提示按钮 -->
                 <div class="grid grid-cols-2 gap-3 max-w-md mx-auto">
                   <button
@@ -191,48 +190,60 @@
         </main>
       </div>
 
-      <footer
-        class="flex flex-col max-w-4xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 border-t border-gray-200 bg-white"
-      >
-        <!-- 输入区域 -->
-        <div class="bg-white rounded-2xl border border-gray-200 shadow-lg p-4">
-          <div class="flex items-end gap-3">
-            <div class="flex-1">
-              <el-input
-                v-model="inputText"
-                type="textarea"
-                :rows="3"
-                :autosize="{ minRows: 3, maxRows: 6 }"
-                placeholder="输入消息..."
-                class="resize-none"
-                :disabled="chatStore.isGenerating"
-                @keydown.ctrl.enter="handleSend"
-                @keydown.meta.enter="handleSend"
-              />
-            </div>
-            <div class="flex flex-col gap-2">
-              <el-button
-                v-if="chatStore.isGenerating"
-                type="danger"
-                size="large"
-                :icon="Close"
-                @click="handleInterrupt"
-              >
-                停止
-              </el-button>
-              <el-button
-                v-else
-                type="primary"
-                size="large"
-                :icon="Promotion"
-                :disabled="!inputText.trim() || chatStore.isGenerating"
-                @click="handleSend"
-              >
-                发送
-              </el-button>
+      <footer class="max-w-4xl mx-auto w-full px-4 pb-8 pt-2 bg-transparent">
+        <div
+          class="relative bg-white rounded-[28px] border border-gray-200 shadow-sm hover:shadow-md transition-shadow p-2 pl-5"
+        >
+          <div class="flex flex-col">
+            <el-input
+              v-model="inputText"
+              type="textarea"
+              :autosize="{ minRows: 1, maxRows: 8 }"
+              placeholder="输入消息..."
+              class="gemini-input mt-2"
+              :disabled="chatStore.isGenerating"
+              @keydown.ctrl.enter="handleSend"
+              @keydown.meta.enter="handleSend"
+            />
+
+            <div class="flex items-center justify-between mt-2 mb-1 pr-2">
+              <div class="flex items-center gap-1 text-gray-500">
+                <el-button :icon="Plus" circle text class="!p-2 hover:bg-gray-100" />
+                <el-button :icon="Picture" circle text class="!p-2 hover:bg-gray-100" />
+              </div>
+
+              <div class="flex items-center">
+                <transition mode="out-in">
+                  <el-button
+                    v-if="chatStore.isGenerating"
+                    type="danger"
+                    circle
+                    class="!w-10 !h-10 !p-0"
+                    @click="handleInterrupt"
+                  >
+                    <el-icon :size="20">
+                      <Close />
+                    </el-icon>
+                  </el-button>
+                  <el-button
+                    v-else
+                    type="primary"
+                    circle
+                    :disabled="!inputText.trim()"
+                    class="!w-10 !h-10 !p-0 !border-none send-btn"
+                    @click="handleSend"
+                  >
+                    <el-icon :size="20">
+                      <Promotion />
+                    </el-icon>
+                  </el-button>
+                </transition>
+              </div>
             </div>
           </div>
-          <div class="mt-2 text-xs text-gray-400 text-center">按 Ctrl+Enter 或 Cmd+Enter 发送</div>
+        </div>
+        <div class="mt-3 text-[11px] text-gray-400 text-center font-light">
+          AI 可能会产生错误信息，请核实重要信息。按 Ctrl+Enter 发送
         </div>
       </footer>
     </div>
@@ -243,7 +254,15 @@
 import { ref, computed, nextTick, watch, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessageBox, ElMessage } from 'element-plus'
-import { ChatDotRound, SwitchButton, Promotion, Close, ArrowDown } from '@element-plus/icons-vue'
+import {
+  ChatDotRound,
+  SwitchButton,
+  Promotion,
+  Close,
+  ArrowDown,
+  Plus,
+  Picture,
+} from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { useChatStore } from '@/stores/chat'
 import ThreadSidebar from '@/components/ThreadSidebar.vue'
@@ -542,5 +561,47 @@ onMounted(async () => {
 
 .messages-container::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
+}
+
+/* 输入框样式 */
+:deep(.gemini-input .el-textarea__inner) {
+  box-shadow: none !important;
+  border: none !important;
+  padding: 0 !important;
+  background: transparent !important;
+  font-size: 16px;
+  line-height: 1.5;
+  color: #1f1f1f;
+  resize: none;
+}
+
+/* 自定义发送按钮颜色 */
+.send-btn {
+  background-color: #1a73e8 !important;
+  transition: all 0.2s ease;
+}
+
+.send-btn:disabled {
+  background-color: #f1f3f4 !important;
+  color: #9aa0a6 !important;
+}
+
+/* 按钮点击动画 */
+.send-btn:active {
+  transform: scale(0.9);
+}
+
+/* 渐变消失动画 */
+.v-enter-active,
+.v-leave-active {
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+}
+
+.v-enter-from,
+.v-leave-to {
+  opacity: 0;
+  transform: scale(0.8);
 }
 </style>
