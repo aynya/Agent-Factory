@@ -358,7 +358,7 @@ const currentThreadTitle = computed(() => {
     return null
   }
 
-  const thread = chatStore.threads.find((t) => t.threadId === threadId)
+  const thread = chatStore.threads.find(t => t.threadId === threadId)
   return thread?.title || null
 })
 
@@ -368,32 +368,200 @@ const md: MarkdownIt = new MarkdownIt({
   linkify: true,
   typographer: true,
   highlight: function (str: string, lang?: string): string {
+    // highlight 函数只返回高亮后的代码内容，不包含 pre/code 标签
     if (lang && hljs.getLanguage(lang)) {
       try {
-        return (
-          '<pre class="hljs"><code>' +
-          hljs.highlight(str, { language: lang, ignoreIllegals: true }).value +
-          '</code></pre>'
-        )
+        return hljs.highlight(str, { language: lang, ignoreIllegals: true }).value
       } catch {
         // 如果高亮失败，继续执行下面的逻辑
       }
     }
     // 如果没有指定语言或语言不支持，尝试自动检测
     try {
-      return '<pre class="hljs"><code>' + hljs.highlightAuto(str).value + '</code></pre>'
+      return hljs.highlightAuto(str).value
     } catch {
       // 如果自动检测失败，返回转义的代码
-      return '<pre class="hljs"><code>' + md.utils.escapeHtml(str) + '</code></pre>'
+      return md.utils.escapeHtml(str)
     }
   },
 })
+
+// 重写 fence 规则，自定义代码块渲染
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+md.renderer.rules.fence = function (tokens, idx, _options, _env, _self) {
+  const token = tokens[idx]
+  if (!token) {
+    return ''
+  }
+  const info = token.info ? token.info.trim() : ''
+  const langName = info ? info.split(/\s+/g)[0] : ''
+  const code = token.content || ''
+
+  // 获取高亮后的代码内容
+  let highlightedCode = ''
+  let detectedLang = langName || ''
+
+  if (langName && hljs.getLanguage(langName)) {
+    try {
+      const result = hljs.highlight(code, { language: langName, ignoreIllegals: true })
+      highlightedCode = result.value
+      detectedLang = langName
+    } catch {
+      // 如果高亮失败，尝试自动检测
+      try {
+        const result = hljs.highlightAuto(code)
+        highlightedCode = result.value
+        detectedLang = result.language || 'text'
+      } catch {
+        highlightedCode = md.utils.escapeHtml(code)
+        detectedLang = 'text'
+      }
+    }
+  } else {
+    // 自动检测语言
+    try {
+      const result = hljs.highlightAuto(code)
+      highlightedCode = result.value
+      detectedLang = result.language || 'text'
+    } catch {
+      highlightedCode = md.utils.escapeHtml(code)
+      detectedLang = 'text'
+    }
+  }
+
+  // 转义代码内容用于 data 属性
+  const escapedCode = md.utils.escapeHtml(code)
+
+  // 语言名称映射（美化显示）
+  const langMap: Record<string, string> = {
+    javascript: 'JavaScript',
+    typescript: 'TypeScript',
+    python: 'Python',
+    java: 'Java',
+    cpp: 'C++',
+    c: 'C',
+    csharp: 'C#',
+    go: 'Go',
+    rust: 'Rust',
+    php: 'PHP',
+    ruby: 'Ruby',
+    swift: 'Swift',
+    kotlin: 'Kotlin',
+    html: 'HTML',
+    css: 'CSS',
+    json: 'JSON',
+    xml: 'XML',
+    yaml: 'YAML',
+    markdown: 'Markdown',
+    bash: 'Bash',
+    shell: 'Shell',
+    sql: 'SQL',
+    vue: 'Vue',
+    react: 'React',
+  }
+
+  const displayLang = langMap[detectedLang.toLowerCase()] || detectedLang || 'Text'
+
+  // 生成唯一的 ID 用于复制按钮
+  const codeId = `code-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`
+
+  // 返回完整的代码块 HTML（包含头部和代码内容）
+  return `
+    <div class="code-block-wrapper">
+      <div class="code-block-header">
+        <span class="code-block-lang">${displayLang}</span>
+        <button 
+          class="code-block-copy-btn" 
+          data-code-id="${codeId}"
+          data-code-content="${escapedCode.replace(/"/g, '&quot;').replace(/'/g, '&#39;')}"
+          title="复制代码"
+          type="button"
+        >
+          <svg class="copy-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+          </svg>
+          <svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: none;">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
+          <span class="copy-text">复制</span>
+        </button>
+      </div>
+      <pre class="hljs"><code>${highlightedCode}</code></pre>
+    </div>
+  `
+}
 
 /**
  * 渲染 Markdown
  */
 function renderMarkdown(text: string): string {
-  return md.render(text)
+  const html = md.render(text)
+  // 渲染后初始化复制按钮
+  nextTick(() => {
+    initCopyButtons()
+  })
+  return html
+}
+
+/**
+ * 初始化代码块的复制按钮
+ */
+function initCopyButtons() {
+  const copyButtons = document.querySelectorAll('.code-block-copy-btn')
+  copyButtons.forEach(button => {
+    // 检查是否已经添加过事件监听器
+    if ((button as HTMLElement).dataset.listenerAdded === 'true') {
+      return
+    }
+
+    // 标记为已添加监听器
+    ;(button as HTMLElement).dataset.listenerAdded = 'true'
+
+    // 添加事件监听器
+    button.addEventListener('click', async e => {
+      e.preventDefault()
+      e.stopPropagation()
+
+      const codeContent = button.getAttribute('data-code-content')
+      if (!codeContent) return
+
+      try {
+        // 解码 HTML 实体
+        const textarea = document.createElement('textarea')
+        textarea.innerHTML = codeContent
+        const decodedContent = textarea.value
+
+        // 复制到剪贴板
+        await navigator.clipboard.writeText(decodedContent)
+
+        // 更新按钮状态
+        const copyIcon = button.querySelector('.copy-icon') as HTMLElement
+        const checkIcon = button.querySelector('.check-icon') as HTMLElement
+        const copyText = button.querySelector('.copy-text') as HTMLElement
+
+        if (copyIcon && checkIcon && copyText) {
+          copyIcon.style.display = 'none'
+          checkIcon.style.display = 'block'
+          copyText.textContent = '已复制'
+          button.classList.add('copied')
+
+          // 2 秒后恢复
+          setTimeout(() => {
+            copyIcon.style.display = 'block'
+            checkIcon.style.display = 'none'
+            copyText.textContent = '复制'
+            button.classList.remove('copied')
+          }, 2000)
+        }
+
+        ElMessage.success('代码已复制到剪贴板')
+      } catch (err) {
+        console.error('复制失败:', err)
+        ElMessage.error('复制失败，请手动复制')
+      }
+    })
+  })
 }
 
 /**
@@ -503,16 +671,20 @@ watch(
       // 在 /chat 路由时，清空当前会话
       chatStore.createNewThread()
     }
-  },
+  }
 )
 
-// 监听消息变化，自动滚动到底部
+// 监听消息变化，自动滚动到底部并初始化复制按钮
 watch(
   () => chatStore.messages,
   () => {
     scrollToBottom()
+    // 初始化复制按钮
+    nextTick(() => {
+      initCopyButtons()
+    })
   },
-  { deep: true },
+  { deep: true }
 )
 
 onMounted(async () => {
@@ -582,16 +754,139 @@ onMounted(async () => {
   font-family: 'Courier New', monospace;
 }
 
-/* 代码块容器样式 */
-:deep(.markdown-body pre) {
+/* 代码块容器样式（普通代码块，不在包装器内） */
+:deep(.markdown-body pre:not(.code-block-wrapper pre)) {
   margin: 1em 0;
   border-radius: 8px;
   overflow: hidden;
   position: relative;
 }
 
-/* highlight.js 代码块样式 */
-:deep(.markdown-body pre.hljs) {
+/* 代码块包装器 */
+:deep(.markdown-body .code-block-wrapper) {
+  margin: 1em 0;
+  border-radius: 8px;
+  overflow: hidden;
+  background-color: #0d1117;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  position: relative;
+}
+
+/* 代码块头部（语言标签和复制按钮） */
+:deep(.markdown-body .code-block-header) {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background-color: rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* 语言标签 */
+:deep(.markdown-body .code-block-lang) {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.7);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-family:
+    'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Consolas', 'Courier New', monospace;
+}
+
+/* 复制按钮 */
+:deep(.markdown-body .code-block-copy-btn) {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background-color: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  outline: none;
+}
+
+:deep(.markdown-body .code-block-copy-btn:hover) {
+  background-color: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.3);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+:deep(.markdown-body .code-block-copy-btn:active) {
+  transform: scale(0.95);
+}
+
+:deep(.markdown-body .code-block-copy-btn.copied) {
+  background-color: rgba(34, 197, 94, 0.15);
+  border-color: rgba(34, 197, 94, 0.3);
+  color: #22c55e;
+}
+
+:deep(.markdown-body .code-block-copy-btn.copied:hover) {
+  background-color: rgba(34, 197, 94, 0.2);
+}
+
+/* 复制按钮图标 */
+:deep(.markdown-body .code-block-copy-btn svg) {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  stroke-width: 2;
+}
+
+:deep(.markdown-body .code-block-copy-btn .copy-icon) {
+  display: block;
+}
+
+:deep(.markdown-body .code-block-copy-btn .check-icon) {
+  display: none;
+  color: #22c55e;
+}
+
+:deep(.markdown-body .code-block-copy-btn.copied .copy-icon) {
+  display: none;
+}
+
+:deep(.markdown-body .code-block-copy-btn.copied .check-icon) {
+  display: block;
+}
+
+/* 复制按钮文本 */
+:deep(.markdown-body .code-block-copy-btn .copy-text) {
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+/* highlight.js 代码块样式（在包装器内） */
+:deep(.markdown-body .code-block-wrapper pre.hljs) {
+  margin: 0 !important;
+  padding: 16px !important;
+  overflow-x: auto;
+  border: none !important;
+  border-radius: 0 !important;
+  background-color: transparent !important;
+  background: transparent !important;
+}
+
+:deep(.markdown-body .code-block-wrapper pre.hljs code) {
+  background-color: transparent !important;
+  background: transparent !important;
+  padding: 0 !important;
+  font-size: 0.875em;
+  line-height: 1.6;
+  font-family:
+    'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Consolas', 'Courier New', monospace;
+  display: block;
+  white-space: pre;
+  color: inherit;
+}
+
+/* highlight.js 代码块样式（不在包装器内的普通代码块） */
+:deep(.markdown-body pre.hljs:not(.code-block-wrapper pre)) {
   padding: 16px;
   overflow-x: auto;
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -599,7 +894,7 @@ onMounted(async () => {
   border-radius: 8px;
 }
 
-:deep(.markdown-body pre.hljs code) {
+:deep(.markdown-body pre.hljs:not(.code-block-wrapper pre) code) {
   background-color: transparent !important;
   padding: 0;
   font-size: 0.875em;
@@ -611,20 +906,24 @@ onMounted(async () => {
 }
 
 /* 代码块滚动条样式 */
+:deep(.markdown-body .code-block-wrapper pre.hljs::-webkit-scrollbar),
 :deep(.markdown-body pre.hljs::-webkit-scrollbar) {
   height: 8px;
 }
 
+:deep(.markdown-body .code-block-wrapper pre.hljs::-webkit-scrollbar-track),
 :deep(.markdown-body pre.hljs::-webkit-scrollbar-track) {
   background: rgba(255, 255, 255, 0.05);
   border-radius: 4px;
 }
 
+:deep(.markdown-body .code-block-wrapper pre.hljs::-webkit-scrollbar-thumb),
 :deep(.markdown-body pre.hljs::-webkit-scrollbar-thumb) {
   background: rgba(255, 255, 255, 0.2);
   border-radius: 4px;
 }
 
+:deep(.markdown-body .code-block-wrapper pre.hljs::-webkit-scrollbar-thumb:hover),
 :deep(.markdown-body pre.hljs::-webkit-scrollbar-thumb:hover) {
   background: rgba(255, 255, 255, 0.3);
 }
