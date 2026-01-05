@@ -230,7 +230,7 @@
 
               <!-- AI 回复 -->
               <div v-else class="flex gap-3 w-[100%]">
-                <div class="flex-1">
+                <div class="flex-1 min-w-0">
                   <div class="rounded-2xl rounded-tl-sm px-4 py-3">
                     <div
                       v-if="message.content"
@@ -338,6 +338,8 @@ import { useAuthStore } from '@/stores/auth'
 import { useChatStore } from '@/stores/chat'
 import ThreadSidebar from '@/components/ThreadSidebar.vue'
 import MarkdownIt from 'markdown-it'
+import hljs from 'highlight.js'
+import 'highlight.js/styles/github-dark.css'
 
 const router = useRouter()
 const route = useRoute()
@@ -356,15 +358,35 @@ const currentThreadTitle = computed(() => {
     return null
   }
 
-  const thread = chatStore.threads.find(t => t.threadId === threadId)
+  const thread = chatStore.threads.find((t) => t.threadId === threadId)
   return thread?.title || null
 })
 
-// 初始化 markdown-it
-const md = new MarkdownIt({
+// 初始化 markdown-it，配置代码高亮
+const md: MarkdownIt = new MarkdownIt({
   html: true,
   linkify: true,
   typographer: true,
+  highlight: function (str: string, lang?: string): string {
+    if (lang && hljs.getLanguage(lang)) {
+      try {
+        return (
+          '<pre class="hljs"><code>' +
+          hljs.highlight(str, { language: lang, ignoreIllegals: true }).value +
+          '</code></pre>'
+        )
+      } catch {
+        // 如果高亮失败，继续执行下面的逻辑
+      }
+    }
+    // 如果没有指定语言或语言不支持，尝试自动检测
+    try {
+      return '<pre class="hljs"><code>' + hljs.highlightAuto(str).value + '</code></pre>'
+    } catch {
+      // 如果自动检测失败，返回转义的代码
+      return '<pre class="hljs"><code>' + md.utils.escapeHtml(str) + '</code></pre>'
+    }
+  },
 })
 
 /**
@@ -481,7 +503,7 @@ watch(
       // 在 /chat 路由时，清空当前会话
       chatStore.createNewThread()
     }
-  }
+  },
 )
 
 // 监听消息变化，自动滚动到底部
@@ -490,7 +512,7 @@ watch(
   () => {
     scrollToBottom()
   },
-  { deep: true }
+  { deep: true },
 )
 
 onMounted(async () => {
@@ -551,7 +573,8 @@ onMounted(async () => {
   margin-bottom: 1em;
 }
 
-:deep(.markdown-body code) {
+/* 行内代码样式 */
+:deep(.markdown-body code:not(.hljs)) {
   background-color: rgba(175, 184, 193, 0.2);
   padding: 0.2em 0.4em;
   border-radius: 3px;
@@ -559,18 +582,51 @@ onMounted(async () => {
   font-family: 'Courier New', monospace;
 }
 
+/* 代码块容器样式 */
 :deep(.markdown-body pre) {
-  background-color: #f6f8fa;
-  border-radius: 6px;
-  padding: 16px;
-  overflow-x: auto;
-  margin-bottom: 1em;
+  margin: 1em 0;
+  border-radius: 8px;
+  overflow: hidden;
+  position: relative;
 }
 
-:deep(.markdown-body pre code) {
-  background-color: transparent;
+/* highlight.js 代码块样式 */
+:deep(.markdown-body pre.hljs) {
+  padding: 16px;
+  overflow-x: auto;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  margin-bottom: 1em;
+  border-radius: 8px;
+}
+
+:deep(.markdown-body pre.hljs code) {
+  background-color: transparent !important;
   padding: 0;
-  font-size: 0.9em;
+  font-size: 0.875em;
+  line-height: 1.6;
+  font-family:
+    'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Consolas', 'Courier New', monospace;
+  display: block;
+  white-space: pre;
+}
+
+/* 代码块滚动条样式 */
+:deep(.markdown-body pre.hljs::-webkit-scrollbar) {
+  height: 8px;
+}
+
+:deep(.markdown-body pre.hljs::-webkit-scrollbar-track) {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+}
+
+:deep(.markdown-body pre.hljs::-webkit-scrollbar-thumb) {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+}
+
+:deep(.markdown-body pre.hljs::-webkit-scrollbar-thumb:hover) {
+  background: rgba(255, 255, 255, 0.3);
 }
 
 :deep(.markdown-body ul),
