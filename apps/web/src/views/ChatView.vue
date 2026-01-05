@@ -8,76 +8,7 @@
     <!-- 右侧主内容区域 -->
     <div class="flex-1 flex flex-col overflow-hidden">
       <!-- 顶部导航栏 -->
-      <header class="sticky top-0 z-50">
-        <div class="px-4 sm:px-6 lg:px-8">
-          <div class="flex items-center h-16 relative">
-            <!-- 左侧：Logo 和平台名 -->
-            <div class="flex items-center space-x-3 flex-shrink-0">
-              <div
-                class="w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center"
-              >
-                <el-icon :size="20" class="text-white">
-                  <ChatDotRound />
-                </el-icon>
-              </div>
-              <h1 class="text-xl font-bold text-gray-900">AI Agent Platform</h1>
-            </div>
-
-            <!-- 中间：Thread 标题（居中显示） -->
-            <div
-              class="flex-1 flex items-center justify-center absolute inset-0 pointer-events-none"
-            >
-              <h2
-                v-if="currentThreadTitle"
-                class="text-base font-medium text-gray-900 truncate max-w-md pointer-events-auto"
-              >
-                {{ currentThreadTitle }}
-              </h2>
-            </div>
-
-            <!-- 右侧：用户信息下拉菜单 -->
-            <div class="flex items-center flex-shrink-0 ml-auto">
-              <el-dropdown
-                v-if="authStore.user"
-                trigger="click"
-                placement="bottom-end"
-                @command="handleCommand"
-              >
-                <div
-                  class="flex items-center space-x-2 cursor-pointer hover:opacity-80 transition-opacity"
-                >
-                  <el-avatar :size="32" :src="authStore.user.avatar">
-                    {{ authStore.user.username.charAt(0).toUpperCase() }}
-                  </el-avatar>
-                  <span class="text-sm text-gray-700 font-medium hidden sm:inline">
-                    {{ authStore.user.username }}
-                  </span>
-                  <el-icon class="text-gray-400 hidden sm:inline">
-                    <ArrowDown />
-                  </el-icon>
-                </div>
-                <template #dropdown>
-                  <el-dropdown-menu>
-                    <el-dropdown-item disabled>
-                      <div class="flex flex-col">
-                        <span class="text-sm font-medium text-gray-900">
-                          {{ authStore.user.username }}
-                        </span>
-                      </div>
-                    </el-dropdown-item>
-                    <el-dropdown-item divided command="logout">
-                      <el-icon class="mr-2">
-                        <SwitchButton />
-                      </el-icon>
-                      退出登录
-                    </el-dropdown-item>
-                  </el-dropdown-menu>
-                </template>
-              </el-dropdown>
-            </div>
-          </div>
-        </div>
-      </header>
+      <ChatHeader :title="currentThreadTitle" @logout="handleLogout" />
 
       <div
         ref="messagesContainer"
@@ -328,19 +259,12 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, watch, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { ElMessageBox, ElMessage } from 'element-plus'
-import {
-  ChatDotRound,
-  SwitchButton,
-  Promotion,
-  Close,
-  ArrowDown,
-  Plus,
-  Picture,
-} from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
+import { Promotion, Close, Plus, Picture } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { useChatStore } from '@/stores/chat'
 import ThreadSidebar from '@/components/ThreadSidebar.vue'
+import ChatHeader from '@/components/ChatHeader.vue'
 import { createMarkdownRenderer, renderMarkdown as renderMarkdownUtil } from '@monorepo/utils'
 import 'highlight.js/styles/github-dark.css'
 
@@ -481,30 +405,10 @@ async function handleInterrupt() {
 }
 
 /**
- * 处理下拉菜单命令
+ * 处理退出登录（在导航栏退出登录后调用，用于清理会话状态）
  */
-async function handleCommand(command: string) {
-  if (command === 'logout') {
-    await handleLogout()
-  }
-}
-
-/**
- * 退出登录
- */
-async function handleLogout() {
-  try {
-    await ElMessageBox.confirm('确定要退出登录吗？', '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning',
-    })
-    chatStore.createNewThread()
-    authStore.logout()
-    router.push('/login')
-  } catch {
-    // 用户取消
-  }
+function handleLogout() {
+  chatStore.createNewThread()
 }
 
 // 监听路由变化，加载对应的会话
