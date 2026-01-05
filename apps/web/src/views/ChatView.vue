@@ -79,7 +79,7 @@
         </div>
       </header>
 
-      <div ref="messagesContainer" class="flex-1 overflow-y-auto messages-container">
+      <div ref="messagesContainer" class="flex-1 flex overflow-y-auto messages-container">
         <!-- 主内容区域 -->
         <main class="flex-1 flex flex-col max-w-4xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6">
           <!-- 消息列表 -->
@@ -87,7 +87,7 @@
             <!-- 欢迎界面（仅在 /chat 路由且无消息时显示） -->
             <div
               v-if="!route.params.threadId && chatStore.messages.length === 0"
-              class="flex items-center justify-center h-full"
+              class="flex flex-col items-center justify-center h-full"
             >
               <div class="text-center py-12 max-w-2xl mx-auto">
                 <div
@@ -129,6 +129,70 @@
                   </button>
                 </div>
               </div>
+
+              <!-- 输入框（在欢迎界面时显示在中间） -->
+              <transition name="input-fade" mode="out-in">
+                <div
+                  v-if="!route.params.threadId && chatStore.messages.length === 0"
+                  key="input-center"
+                  class="w-full max-w-2xl mx-auto mt-4 input-container input-container-center"
+                >
+                  <div
+                    class="relative bg-white rounded-[28px] border border-gray-200 shadow-sm hover:shadow-md transition-shadow p-2 pl-5"
+                  >
+                    <div class="flex flex-col">
+                      <el-input
+                        v-model="inputText"
+                        type="textarea"
+                        :autosize="{ minRows: 1, maxRows: 8 }"
+                        placeholder="输入消息..."
+                        class="gemini-input mt-2"
+                        :disabled="chatStore.isGenerating"
+                        @keydown.ctrl.enter="handleSend"
+                        @keydown.meta.enter="handleSend"
+                      />
+
+                      <div class="flex items-center justify-between mt-2 mb-1 pr-2">
+                        <div class="flex items-center gap-1 text-gray-500">
+                          <el-button :icon="Plus" circle text class="!p-2 hover:bg-gray-100" />
+                          <el-button :icon="Picture" circle text class="!p-2 hover:bg-gray-100" />
+                        </div>
+
+                        <div class="flex items-center">
+                          <transition mode="out-in">
+                            <el-button
+                              v-if="chatStore.isGenerating"
+                              type="danger"
+                              circle
+                              class="!w-10 !h-10 !p-0"
+                              @click="handleInterrupt"
+                            >
+                              <el-icon :size="20">
+                                <Close />
+                              </el-icon>
+                            </el-button>
+                            <el-button
+                              v-else
+                              type="primary"
+                              circle
+                              :disabled="!inputText.trim()"
+                              class="!w-10 !h-10 !p-0 !border-none send-btn"
+                              @click="handleSend"
+                            >
+                              <el-icon :size="20">
+                                <Promotion />
+                              </el-icon>
+                            </el-button>
+                          </transition>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="mt-3 text-[11px] text-gray-400 text-center font-light">
+                    AI 可能会产生错误信息，请核实重要信息。按 Ctrl+Enter 发送
+                  </div>
+                </div>
+              </transition>
             </div>
 
             <!-- 空会话提示（在 /chat/:threadId 但无消息时显示） -->
@@ -190,62 +254,69 @@
         </main>
       </div>
 
-      <footer class="max-w-4xl mx-auto w-full px-4 pb-8 pt-2 bg-transparent">
-        <div
-          class="relative bg-white rounded-[28px] border border-gray-200 shadow-sm hover:shadow-md transition-shadow p-2 pl-5"
+      <!-- 输入框（有消息时显示在底部） -->
+      <transition name="input-fade" mode="out-in">
+        <footer
+          v-if="route.params.threadId || chatStore.messages.length > 0"
+          key="input-bottom"
+          class="max-w-4xl mx-auto w-full px-4 pb-8 pt-2 bg-transparent input-container input-container-bottom"
         >
-          <div class="flex flex-col">
-            <el-input
-              v-model="inputText"
-              type="textarea"
-              :autosize="{ minRows: 1, maxRows: 8 }"
-              placeholder="输入消息..."
-              class="gemini-input mt-2"
-              :disabled="chatStore.isGenerating"
-              @keydown.ctrl.enter="handleSend"
-              @keydown.meta.enter="handleSend"
-            />
+          <div
+            class="relative bg-white rounded-[28px] border border-gray-200 shadow-sm hover:shadow-md transition-shadow p-2 pl-5"
+          >
+            <div class="flex flex-col">
+              <el-input
+                v-model="inputText"
+                type="textarea"
+                :autosize="{ minRows: 1, maxRows: 8 }"
+                placeholder="输入消息..."
+                class="gemini-input mt-2"
+                :disabled="chatStore.isGenerating"
+                @keydown.ctrl.enter="handleSend"
+                @keydown.meta.enter="handleSend"
+              />
 
-            <div class="flex items-center justify-between mt-2 mb-1 pr-2">
-              <div class="flex items-center gap-1 text-gray-500">
-                <el-button :icon="Plus" circle text class="!p-2 hover:bg-gray-100" />
-                <el-button :icon="Picture" circle text class="!p-2 hover:bg-gray-100" />
-              </div>
+              <div class="flex items-center justify-between mt-2 mb-1 pr-2">
+                <div class="flex items-center gap-1 text-gray-500">
+                  <el-button :icon="Plus" circle text class="!p-2 hover:bg-gray-100" />
+                  <el-button :icon="Picture" circle text class="!p-2 hover:bg-gray-100" />
+                </div>
 
-              <div class="flex items-center">
-                <transition mode="out-in">
-                  <el-button
-                    v-if="chatStore.isGenerating"
-                    type="danger"
-                    circle
-                    class="!w-10 !h-10 !p-0"
-                    @click="handleInterrupt"
-                  >
-                    <el-icon :size="20">
-                      <Close />
-                    </el-icon>
-                  </el-button>
-                  <el-button
-                    v-else
-                    type="primary"
-                    circle
-                    :disabled="!inputText.trim()"
-                    class="!w-10 !h-10 !p-0 !border-none send-btn"
-                    @click="handleSend"
-                  >
-                    <el-icon :size="20">
-                      <Promotion />
-                    </el-icon>
-                  </el-button>
-                </transition>
+                <div class="flex items-center">
+                  <transition mode="out-in">
+                    <el-button
+                      v-if="chatStore.isGenerating"
+                      type="danger"
+                      circle
+                      class="!w-10 !h-10 !p-0"
+                      @click="handleInterrupt"
+                    >
+                      <el-icon :size="20">
+                        <Close />
+                      </el-icon>
+                    </el-button>
+                    <el-button
+                      v-else
+                      type="primary"
+                      circle
+                      :disabled="!inputText.trim()"
+                      class="!w-10 !h-10 !p-0 !border-none send-btn"
+                      @click="handleSend"
+                    >
+                      <el-icon :size="20">
+                        <Promotion />
+                      </el-icon>
+                    </el-button>
+                  </transition>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-        <div class="mt-3 text-[11px] text-gray-400 text-center font-light">
-          AI 可能会产生错误信息，请核实重要信息。按 Ctrl+Enter 发送
-        </div>
-      </footer>
+          <div class="mt-3 text-[11px] text-gray-400 text-center font-light">
+            AI 可能会产生错误信息，请核实重要信息。按 Ctrl+Enter 发送
+          </div>
+        </footer>
+      </transition>
     </div>
   </div>
 </template>
@@ -603,5 +674,63 @@ onMounted(async () => {
 .v-leave-to {
   opacity: 0;
   transform: scale(0.8);
+}
+
+/* 输入框位置动画 */
+.input-container {
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.input-container-center {
+  position: relative;
+  animation: slideInFromCenter 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.input-container-bottom {
+  position: relative;
+  animation: slideInFromBottom 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes slideInFromCenter {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInFromBottom {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 输入框切换过渡动画 */
+.input-fade-enter-active {
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.input-fade-leave-active {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.input-fade-enter-from {
+  opacity: 0;
+  transform: translateY(20px) scale(0.95);
+}
+
+.input-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-20px) scale(0.95);
 }
 </style>
