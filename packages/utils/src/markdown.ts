@@ -1,6 +1,10 @@
 import MarkdownIt from 'markdown-it';
 import hljs from 'highlight.js';
 
+// 定义 fence 规则的类型
+type FenceRule = NonNullable<MarkdownIt['renderer']['rules']['fence']>;
+type FenceRuleParams = Parameters<FenceRule>;
+
 // 语言名称映射（美化显示）
 const langMap: Record<string, string> = {
   javascript: 'JavaScript',
@@ -59,13 +63,12 @@ export function createMarkdownRenderer(): MarkdownIt {
   });
 
   // 重写 fence 规则，自定义代码块渲染
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   md.renderer.rules.fence = function (
-    tokens: any[],
-    idx: number,
-    _options: any,
-    _env: any,
-    _self: any
+    tokens: FenceRuleParams[0],
+    idx: FenceRuleParams[1],
+    _options: FenceRuleParams[2],
+    _env: FenceRuleParams[3],
+    _self: FenceRuleParams[4]
   ) {
     const token = tokens[idx];
     if (!token) {
