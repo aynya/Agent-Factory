@@ -189,6 +189,7 @@
                 </div>
               </div>
             </div>
+            <div class="w-[100%] h-8"></div>
           </div>
         </main>
       </div>
@@ -200,6 +201,9 @@
           key="input-bottom"
           class="max-w-4xl mx-auto w-full px-4 pb-8 pt-2 bg-transparent input-container input-container-bottom"
         >
+          <div
+            class="absolute -top-8 left-0 right-0 h-8 bg-gradient-to-t from-gray-50 to-transparent pointer-events-none"
+          ></div>
           <div
             class="relative bg-white rounded-[28px] border border-gray-200 shadow-sm hover:shadow-md transition-shadow p-2 pl-5"
           >
