@@ -166,10 +166,14 @@
               <!-- AI 回复 -->
               <div v-else class="flex gap-3 w-[100%]">
                 <div class="flex-1 min-w-0">
-                  <div class="rounded-2xl rounded-tl-sm px-4 py-3">
+                  <div
+                    class="rounded-2xl rounded-tl-sm px-4 py-3"
+                    :class="message.isError ? 'bg-red-50 border border-red-200' : ''"
+                  >
                     <div
                       v-if="message.content"
                       class="prose prose-sm max-w-none markdown-body"
+                      :class="message.isError ? 'error-message' : ''"
                       v-html="renderMarkdown(message.content)"
                     ></div>
                     <div
@@ -462,6 +466,20 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+/* 错误消息样式 */
+.error-message {
+  color: #dc2626 !important;
+}
+
+.error-message :deep(p) {
+  color: #dc2626 !important;
+}
+
+.error-message :deep(code) {
+  background-color: rgba(220, 38, 38, 0.1) !important;
+  color: #dc2626 !important;
+}
+
 /* Markdown 样式 */
 :deep(.markdown-body) {
   color: #24292f;

@@ -15,6 +15,8 @@ export interface Message {
   content: string
   createdAt?: string
   isStreaming?: boolean
+  isError?: boolean // 是否为错误消息
+  errorMessage?: string // 错误信息
 }
 
 export const useChatStore = defineStore('chat', () => {
@@ -218,7 +220,15 @@ export const useChatStore = defineStore('chat', () => {
         // 错误时可能还没有收到 start 事件，所以使用前端 ID 查找
         const message = messages.value.find(m => m.id === frontendMessageId)
         if (message) {
-          message.content = message.content || `错误: ${event.message}`
+          // 标记为错误消息，并设置错误信息
+          message.isError = true
+          message.errorMessage = event.message
+          // 如果消息内容为空，显示错误信息；如果已有内容，追加错误信息
+          if (!message.content) {
+            message.content = `错误: ${event.message}`
+          } else {
+            message.content = `[错误] ${event.message}`
+          }
           message.isStreaming = false
         }
         isGenerating.value = false
