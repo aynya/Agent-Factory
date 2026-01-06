@@ -425,6 +425,7 @@ watch(
         return
       }
       await chatStore.switchThread(threadId)
+      scrollToBottom(false)
     } else {
       // 在 /chat 路由时，清空当前会话
       chatStore.createNewThread()
@@ -442,7 +443,6 @@ watch(
 )
 
 onMounted(async () => {
-  scrollToBottom()
   // 加载会话列表
   await chatStore.loadThreads()
 
@@ -457,6 +457,7 @@ onMounted(async () => {
     // 在 /chat 路由时，清空当前会话
     chatStore.createNewThread()
   }
+  scrollToBottom(false)
 })
 </script>
 
