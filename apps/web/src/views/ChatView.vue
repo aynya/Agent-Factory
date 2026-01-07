@@ -446,6 +446,9 @@ watch(
   () => chatStore.messages,
   () => {
     scrollToBottom()
+    if (chatStore.messages[chatStore.messages.length - 1]?.isError) {
+      ElMessage.error(chatStore.messages[chatStore.messages.length - 1]?.errorMessage || '生成失败')
+    }
   },
   { deep: true }
 )
