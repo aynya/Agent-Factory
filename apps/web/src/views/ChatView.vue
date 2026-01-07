@@ -13,6 +13,7 @@
       <div
         ref="messagesContainer"
         @click="handleGlobalClick"
+        @scroll="handleScroll"
         class="flex-1 flex overflow-y-auto messages-container"
       >
         <!-- 主内容区域 -->
@@ -204,6 +205,20 @@
           <div
             class="absolute -top-8 left-0 right-0 h-8 bg-gradient-to-t from-gray-50 to-transparent pointer-events-none"
           ></div>
+          <!-- 自动滚动到底部按钮 -->
+          <button
+            v-if="showScrollButton"
+            @click="scrollToBottom(false)"
+            class="absolute left-1/2 -translate-x-1/2 -top-12 w-10 h-10 rounded-full shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center z-10 scroll-to-bottom-btn border"
+            :class="{
+              'animate-pulse border-blue-500 bg-blue-50': chatStore.isGenerating,
+              'bg-white border-gray-300 hover:bg-gray-50': !chatStore.isGenerating,
+            }"
+          >
+            <el-icon :size="18" :style="{ color: chatStore.isGenerating ? '#2563eb' : '#4b5563' }">
+              <ArrowDown />
+            </el-icon>
+          </button>
           <div
             class="relative bg-white rounded-[28px] border border-gray-200 shadow-sm hover:shadow-md transition-shadow p-2 pl-5"
           >
@@ -268,7 +283,7 @@
 import { ref, computed, nextTick, watch, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Promotion, Close, Plus, Picture } from '@element-plus/icons-vue'
+import { Promotion, Close, Plus, Picture, ArrowDown } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { useChatStore } from '@/stores/chat'
 import ThreadSidebar from '@/components/ThreadSidebar.vue'
@@ -283,6 +298,7 @@ const chatStore = useChatStore()
 
 const inputText = ref('')
 const messagesContainer = ref<HTMLElement | null>(null)
+const showScrollButton = ref(false)
 
 /**
  * 获取当前 Thread 的标题
@@ -351,22 +367,69 @@ const handleGlobalClick = async (e: MouseEvent) => {
 }
 
 /**
+ * 检查是否接近底部
+ */
+function checkIsNearBottom(): boolean {
+  if (!messagesContainer.value) return false
+  return (
+    messagesContainer.value.scrollHeight -
+      messagesContainer.value.scrollTop -
+      messagesContainer.value.clientHeight <
+    50
+  )
+}
+
+/**
+ * 更新滚动按钮显示状态
+ */
+function updateScrollButtonVisibility() {
+  // 只在有消息且不在欢迎界面时显示按钮
+  const hasMessages = route.params.threadId || chatStore.messages.length > 0
+  if (!hasMessages) {
+    showScrollButton.value = false
+    return
+  }
+  // 如果接近底部，隐藏按钮；否则显示按钮
+  showScrollButton.value = !checkIsNearBottom()
+}
+
+/**
  * 滚动到底部
  */
-function scrollToBottom(isCheck = true) {
+function scrollToBottom(isCheck = true, smooth = true) {
   nextTick(() => {
     if (messagesContainer.value) {
+      const scrollToValue = messagesContainer.value.scrollHeight
+
       if (isCheck) {
-        if (
-          messagesContainer.value.scrollHeight -
-            messagesContainer.value.scrollTop -
-            messagesContainer.value.clientHeight <
-          50
-        ) {
-          messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
+        if (checkIsNearBottom()) {
+          if (smooth) {
+            messagesContainer.value.scrollTo({
+              top: scrollToValue,
+              behavior: 'smooth',
+            })
+          } else {
+            messagesContainer.value.scrollTop = scrollToValue
+          }
         }
       } else {
-        messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
+        if (smooth) {
+          messagesContainer.value.scrollTo({
+            top: scrollToValue,
+            behavior: 'smooth',
+          })
+        } else {
+          messagesContainer.value.scrollTop = scrollToValue
+        }
+      }
+
+      // 滚动后更新按钮状态（延迟一下，等待平滑滚动完成）
+      if (smooth) {
+        setTimeout(() => {
+          updateScrollButtonVisibility()
+        }, 300)
+      } else {
+        updateScrollButtonVisibility()
       }
     }
   })
@@ -433,11 +496,12 @@ watch(
         return
       }
       await chatStore.switchThread(threadId)
-      scrollToBottom(false)
+      scrollToBottom(false, false)
     } else {
       // 在 /chat 路由时，清空当前会话
       chatStore.createNewThread()
     }
+    updateScrollButtonVisibility()
   }
 )
 
@@ -445,13 +509,27 @@ watch(
 watch(
   () => chatStore.messages,
   () => {
-    scrollToBottom()
+    // 消息更新时使用平滑滚动
+    scrollToBottom(true, true)
     if (chatStore.messages[chatStore.messages.length - 1]?.isError) {
       ElMessage.error(chatStore.messages[chatStore.messages.length - 1]?.errorMessage || '生成失败')
     }
   },
   { deep: true }
 )
+
+// 监听 AI 生成状态变化，更新按钮显示
+watch(
+  () => chatStore.isGenerating,
+  () => {
+    updateScrollButtonVisibility()
+  }
+)
+
+// 监听滚动事件，更新按钮显示状态
+function handleScroll() {
+  updateScrollButtonVisibility()
+}
 
 onMounted(async () => {
   // 加载会话列表
@@ -468,7 +546,8 @@ onMounted(async () => {
     // 在 /chat 路由时，清空当前会话
     chatStore.createNewThread()
   }
-  scrollToBottom(false)
+  scrollToBottom(false, false)
+  updateScrollButtonVisibility()
 })
 </script>
 
@@ -868,5 +947,14 @@ onMounted(async () => {
 .input-fade-leave-to {
   opacity: 0;
   transform: translateY(-20px) scale(0.95);
+}
+
+/* 滚动按钮动画 */
+.scroll-to-bottom-btn {
+  cursor: pointer;
+}
+
+.scroll-to-bottom-btn:active {
+  transform: translateX(-50%) scale(0.9);
 }
 </style>
