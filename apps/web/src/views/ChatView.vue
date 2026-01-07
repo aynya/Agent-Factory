@@ -375,7 +375,7 @@ function checkIsNearBottom(): boolean {
     messagesContainer.value.scrollHeight -
       messagesContainer.value.scrollTop -
       messagesContainer.value.clientHeight <
-    50
+    100
   )
 }
 
@@ -424,13 +424,9 @@ function scrollToBottom(isCheck = true, smooth = true) {
       }
 
       // 滚动后更新按钮状态（延迟一下，等待平滑滚动完成）
-      if (smooth) {
-        setTimeout(() => {
-          updateScrollButtonVisibility()
-        }, 300)
-      } else {
+      setTimeout(() => {
         updateScrollButtonVisibility()
-      }
+      }, 300)
     }
   })
 }
