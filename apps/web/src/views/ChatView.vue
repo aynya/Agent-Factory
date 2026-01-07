@@ -131,24 +131,6 @@
               </transition>
             </div>
 
-            <!-- 空会话提示（在 /chat/:threadId 但无消息时显示） -->
-            <div
-              v-else-if="route.params.threadId && chatStore.messages.length === 0"
-              class="flex items-center justify-center h-full"
-            >
-              <div class="text-center py-12">
-                <div
-                  class="inline-flex items-center justify-center w-20 h-20 bg-blue-100 rounded-full mb-6"
-                >
-                  <el-icon :size="40" class="text-blue-600">
-                    <ChatDotRound />
-                  </el-icon>
-                </div>
-                <h3 class="text-xl font-semibold text-gray-900 mb-2">开始对话</h3>
-                <p class="text-gray-500 max-w-md mx-auto">输入消息开始与 AI 助手对话</p>
-              </div>
-            </div>
-
             <div
               v-for="message in chatStore.messages"
               :key="message.id"
@@ -198,9 +180,9 @@
       <!-- 输入框（有消息时显示在底部） -->
       <transition name="input-fade" mode="out-in">
         <footer
-          v-if="route.params.threadId || chatStore.messages.length > 0"
+          v-if="chatStore.messages.length > 0"
           key="input-bottom"
-          class="max-w-4xl mx-auto w-full px-4 pb-8 pt-2 bg-transparent input-container input-container-bottom"
+          class="max-w-4xl mx-auto w-full px-4 pb-8 pt-2 bg-transparent input-container input-container-bottom relative"
         >
           <div
             class="absolute -top-8 left-0 right-0 h-8 bg-gradient-to-t from-gray-50 to-transparent pointer-events-none"
@@ -930,7 +912,14 @@ onMounted(async () => {
 
 .input-fade-leave-active {
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  position: absolute;
+  position: absolute !important;
+  left: 50% !important;
+  bottom: 0 !important;
+  width: 100% !important;
+  max-width: 56rem !important;
+  /* max-w-4xl */
+  transform: translateX(-50%) !important;
+  z-index: 1;
 }
 
 .input-fade-enter-from {
@@ -940,7 +929,7 @@ onMounted(async () => {
 
 .input-fade-leave-to {
   opacity: 0;
-  transform: translateY(-20px) scale(0.95);
+  transform: translateX(-50%) translateY(-20px) scale(0.95);
 }
 
 /* 滚动按钮动画 */
