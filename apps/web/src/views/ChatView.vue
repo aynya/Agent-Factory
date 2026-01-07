@@ -375,7 +375,7 @@ function checkIsNearBottom(): boolean {
     messagesContainer.value.scrollHeight -
       messagesContainer.value.scrollTop -
       messagesContainer.value.clientHeight <
-    100
+    200
   )
 }
 
@@ -395,39 +395,37 @@ function updateScrollButtonVisibility() {
 
 /**
  * 滚动到底部
+ * @param isCheck 是否检查接近底部（true: 只有接近底部时才滚动, false: 强制滚动）
+ * @param smooth 是否使用平滑滚动
  */
 function scrollToBottom(isCheck = true, smooth = true) {
   nextTick(() => {
-    if (messagesContainer.value) {
-      const scrollToValue = messagesContainer.value.scrollHeight
+    if (!messagesContainer.value) return
 
-      if (isCheck) {
-        if (checkIsNearBottom()) {
-          if (smooth) {
-            messagesContainer.value.scrollTo({
-              top: scrollToValue,
-              behavior: 'smooth',
-            })
-          } else {
-            messagesContainer.value.scrollTop = scrollToValue
-          }
-        }
-      } else {
-        if (smooth) {
-          messagesContainer.value.scrollTo({
-            top: scrollToValue,
-            behavior: 'smooth',
-          })
-        } else {
-          messagesContainer.value.scrollTop = scrollToValue
-        }
-      }
-
-      // 滚动后更新按钮状态（延迟一下，等待平滑滚动完成）
-      setTimeout(() => {
-        updateScrollButtonVisibility()
-      }, 300)
+    // 如果需要检查且不接近底部，则不滚动
+    if (isCheck && !checkIsNearBottom()) {
+      return
     }
+
+    const scrollToValue = messagesContainer.value.scrollHeight
+
+    // 执行滚动
+    if (smooth) {
+      messagesContainer.value.scrollTo({
+        top: scrollToValue,
+        behavior: 'smooth',
+      })
+    } else {
+      messagesContainer.value.scrollTop = scrollToValue
+    }
+
+    // 滚动后更新按钮状态（延迟等待滚动完成）
+    setTimeout(
+      () => {
+        updateScrollButtonVisibility()
+      },
+      smooth ? 400 : 0
+    )
   })
 }
 
