@@ -57,6 +57,23 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   /**
+   * 静默更新会话列表（不显示加载状态，避免闪动）
+   * 确保新 thread 也能被正确添加
+   */
+  async function refreshThreadsSilently() {
+    try {
+      const response = await getThreads()
+      if (response.code === 0 && response.data) {
+        // 直接更新列表，但不设置 isLoadingThreads，避免显示"加载中..."
+        // 这样可以在后台更新列表，包括新创建的 thread，而不会造成视觉闪动
+        threads.value = response.data
+      }
+    } catch (error) {
+      console.error('Failed to refresh threads silently:', error)
+    }
+  }
+
+  /**
    * 加载历史消息
    */
   async function loadMessages(threadId: string) {
@@ -213,8 +230,8 @@ export const useChatStore = defineStore('chat', () => {
         currentAbortController.value = null
         currentMessageId.value = null
 
-        // 消息发送完成后，刷新会话列表（以便更新会话标题和更新时间）
-        loadThreads()
+        // 消息发送完成后，静默刷新会话列表（以便更新会话标题和更新时间，避免闪动）
+        refreshThreadsSilently()
       },
       onError: event => {
         // 错误时可能还没有收到 start 事件，所以使用前端 ID 查找
@@ -234,6 +251,9 @@ export const useChatStore = defineStore('chat', () => {
         isGenerating.value = false
         currentAbortController.value = null
         currentMessageId.value = null
+
+        // 错误时也静默更新会话列表（确保新 thread 被添加）
+        refreshThreadsSilently()
       },
     })
 
@@ -268,6 +288,9 @@ export const useChatStore = defineStore('chat', () => {
       isGenerating.value = false
       currentAbortController.value = null
       currentMessageId.value = null
+
+      // 静默更新会话列表（确保新 thread 被添加，避免闪动）
+      refreshThreadsSilently()
     } catch (error) {
       console.error('Failed to interrupt generation:', error)
     }

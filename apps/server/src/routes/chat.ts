@@ -185,8 +185,10 @@ router.post(
         }
       }
 
-      // 10. 保存 assistant 回复到数据库
-      if (fullContent && !abortController.signal.aborted) {
+      // 10. 保存 assistant 回复到数据库（包括中断的情况）
+      if (fullContent) {
+        const isAborted = abortController.signal.aborted;
+        
         await query(
           'INSERT INTO messages (id, thread_id, role, content, token) VALUES (?, ?, ?, ?, ?)',
           [assistantMessageId, thread_id, 'assistant', fullContent, totalTokens]
@@ -198,7 +200,7 @@ router.post(
           `data: ${JSON.stringify({
             messageId: assistantMessageId,
             role: 'assistant',
-            status: 'usage',
+            status: isAborted ? 'aborted' : 'usage',
             totalTokens,
           })}\n\n`
         );
@@ -356,8 +358,9 @@ router.post(
         await delay(Math.random() * 30 + 20);
       }
 
-      // 8. 保存 assistant 回复到数据库
-      if (fullContent && !abortController.signal.aborted) {
+      // 8. 保存 assistant 回复到数据库（包括中断的情况）
+      if (fullContent) {
+        const isAborted = abortController.signal.aborted;
         // 模拟 token 使用量（根据内容长度估算）
         const estimatedTokens = Math.ceil(fullContent.length / 4);
 
@@ -378,7 +381,7 @@ router.post(
           `data: ${JSON.stringify({
             messageId: assistantMessageId,
             role: 'assistant',
-            status: 'usage',
+            status: isAborted ? 'aborted' : 'usage',
             totalTokens: estimatedTokens,
           })}\n\n`
         );
