@@ -357,7 +357,7 @@ function checkIsNearBottom(): boolean {
     messagesContainer.value.scrollHeight -
       messagesContainer.value.scrollTop -
       messagesContainer.value.clientHeight <
-    200
+    50
   )
 }
 
@@ -378,9 +378,8 @@ function updateScrollButtonVisibility() {
 /**
  * 滚动到底部
  * @param isCheck 是否检查接近底部（true: 只有接近底部时才滚动, false: 强制滚动）
- * @param smooth 是否使用平滑滚动
  */
-function scrollToBottom(isCheck = true, smooth = true) {
+function scrollToBottom(isCheck = true) {
   nextTick(() => {
     if (!messagesContainer.value) return
 
@@ -392,22 +391,7 @@ function scrollToBottom(isCheck = true, smooth = true) {
     const scrollToValue = messagesContainer.value.scrollHeight
 
     // 执行滚动
-    if (smooth) {
-      messagesContainer.value.scrollTo({
-        top: scrollToValue,
-        behavior: 'smooth',
-      })
-    } else {
-      messagesContainer.value.scrollTop = scrollToValue
-    }
-
-    // 滚动后更新按钮状态（延迟等待滚动完成）
-    setTimeout(
-      () => {
-        updateScrollButtonVisibility()
-      },
-      smooth ? 400 : 0
-    )
+    messagesContainer.value.scrollTop = scrollToValue
   })
 }
 
@@ -472,12 +456,11 @@ watch(
         return
       }
       await chatStore.switchThread(threadId)
-      scrollToBottom(false, false)
+      scrollToBottom(false)
     } else {
       // 在 /chat 路由时，清空当前会话
       chatStore.createNewThread()
     }
-    updateScrollButtonVisibility()
   }
 )
 
@@ -485,8 +468,8 @@ watch(
 watch(
   () => chatStore.messages,
   () => {
-    // 消息更新时使用平滑滚动
-    scrollToBottom(true, true)
+    // 消息更新时自动滚动到底部
+    scrollToBottom(true)
     if (chatStore.messages[chatStore.messages.length - 1]?.isError) {
       ElMessage.error(chatStore.messages[chatStore.messages.length - 1]?.errorMessage || '生成失败')
     }
@@ -494,13 +477,13 @@ watch(
   { deep: true }
 )
 
-// 监听 AI 生成状态变化，更新按钮显示
-watch(
-  () => chatStore.isGenerating,
-  () => {
-    updateScrollButtonVisibility()
-  }
-)
+// // 监听 AI 生成状态变化，更新按钮显示
+// watch(
+//   () => chatStore.isGenerating,
+//   () => {
+//     updateScrollButtonVisibility()
+//   }
+// )
 
 // 监听滚动事件，更新按钮显示状态
 function handleScroll() {
@@ -522,8 +505,7 @@ onMounted(async () => {
     // 在 /chat 路由时，清空当前会话
     chatStore.createNewThread()
   }
-  scrollToBottom(false, false)
-  updateScrollButtonVisibility()
+  scrollToBottom(false)
 })
 </script>
 
