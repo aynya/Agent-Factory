@@ -32,6 +32,21 @@
           <span class="btn-text">新会话</span>
         </button>
       </div>
+
+      <div class="agent-btn-wrapper w-full flex justify-center mt-2">
+        <button
+          class="gemini-btn agent-btn group"
+          :class="{ 'is-collapsed': isCollapsed, 'is-active': route.path === '/agents' }"
+          @click="handleGoAgents"
+        >
+          <div class="icon-box">
+            <el-icon :size="20">
+              <Avatar />
+            </el-icon>
+          </div>
+          <span class="btn-text">智能体</span>
+        </button>
+      </div>
     </div>
 
     <!-- 会话列表 -->
@@ -94,7 +109,7 @@
 import { ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessageBox, ElMessage } from 'element-plus'
-import { Plus, ChatDotRound, Delete, Loading, Menu, Fold } from '@element-plus/icons-vue'
+import { Plus, ChatDotRound, Delete, Loading, Menu, Fold, Avatar } from '@element-plus/icons-vue'
 import { useChatStore } from '@/stores/chat'
 
 const router = useRouter()
@@ -122,6 +137,13 @@ function handleSelectThread(threadId: string) {
 }
 
 /**
+ * 跳转到智能体页面
+ */
+function handleGoAgents() {
+  router.push('/agents')
+}
+
+/**
  * 创建新会话
  */
 function handleNewChat() {
@@ -140,7 +162,10 @@ function handleNewChat() {
         // 用户取消
       })
   } else {
-    // 已经在 /chat 路由，直接清空
+    // 若在 /agents 等其他页，先跳转到 /chat
+    if (route.path !== '/chat') {
+      router.push('/chat')
+    }
     chatStore.createNewThread()
   }
 }
@@ -280,5 +305,21 @@ async function handleDeleteThread(threadId: string) {
 .gemini-btn:hover {
   background-color: #b3d9f2;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* 智能体按钮：区分色，激活态 */
+.agent-btn {
+  background-color: #e8dcff;
+  color: #2d1f66;
+}
+
+.agent-btn:hover {
+  background-color: #ddd0f5;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.agent-btn.is-active {
+  background-color: #c9b8f5;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
 }
 </style>

@@ -1,276 +1,258 @@
 <template>
-  <div class="h-screen bg-gray-50 flex overflow-hidden">
-    <!-- 左侧会话列表侧边栏 -->
-    <div class="flex-shrink-0 h-full">
-      <ThreadSidebar />
-    </div>
+  <div
+    ref="messagesContainer"
+    @click="handleGlobalClick"
+    @scroll="handleScroll"
+    class="flex-1 flex overflow-y-auto messages-container"
+  >
+    <!-- 主内容区域 -->
+    <main class="flex-1 flex flex-col max-w-4xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6">
+      <!-- 消息列表 -->
+      <div class="flex-1 min-h-0 mb-4 space-y-6">
+        <!-- 欢迎界面（仅在 /chat 路由且无消息时显示） -->
+        <div
+          v-if="!route.params.threadId && chatStore.messages.length === 0"
+          class="flex flex-col items-center justify-center h-full"
+        >
+          <div class="text-center py-12 max-w-2xl mx-auto">
+            <div
+              class="inline-flex items-center justify-center w-20 h-20 bg-blue-100 rounded-full mb-6"
+            >
+              <el-icon :size="40" class="text-blue-600">
+                <ChatDotRound />
+              </el-icon>
+            </div>
+            <h2 class="text-3xl font-semibold text-gray-900 mb-2">
+              {{ authStore.user?.username || '你好' }}, 你好
+            </h2>
+            <p class="text-lg text-gray-500 mb-8">需要我为你做些什么?</p>
+            <!-- 快捷提示按钮 -->
+            <div class="grid grid-cols-2 gap-3 max-w-md mx-auto">
+              <button
+                class="px-4 py-3 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-sm text-gray-700"
+                @click="handleQuickPrompt('帮我写一段代码')"
+              >
+                帮我写代码
+              </button>
+              <button
+                class="px-4 py-3 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-sm text-gray-700"
+                @click="handleQuickPrompt('解释一下这个概念')"
+              >
+                解释概念
+              </button>
+              <button
+                class="px-4 py-3 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-sm text-gray-700"
+                @click="handleQuickPrompt('帮我学习新知识')"
+              >
+                帮我学习
+              </button>
+              <button
+                class="px-4 py-3 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-sm text-gray-700"
+                @click="handleQuickPrompt('给我一些建议')"
+              >
+                给我建议
+              </button>
+            </div>
+          </div>
 
-    <!-- 右侧主内容区域 -->
-    <div class="flex-1 flex flex-col overflow-hidden">
-      <!-- 顶部导航栏 -->
-      <ChatHeader :title="currentThreadTitle" @logout="handleLogout" />
-
-      <div
-        ref="messagesContainer"
-        @click="handleGlobalClick"
-        @scroll="handleScroll"
-        class="flex-1 flex overflow-y-auto messages-container"
-      >
-        <!-- 主内容区域 -->
-        <main class="flex-1 flex flex-col max-w-4xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6">
-          <!-- 消息列表 -->
-          <div class="flex-1 min-h-0 mb-4 space-y-6">
-            <!-- 欢迎界面（仅在 /chat 路由且无消息时显示） -->
+          <!-- 输入框（在欢迎界面时显示在中间） -->
+          <transition name="input-fade" mode="out-in">
             <div
               v-if="!route.params.threadId && chatStore.messages.length === 0"
-              class="flex flex-col items-center justify-center h-full"
+              key="input-center"
+              class="w-full max-w-2xl mx-auto mt-4 input-container input-container-center"
             >
-              <div class="text-center py-12 max-w-2xl mx-auto">
-                <div
-                  class="inline-flex items-center justify-center w-20 h-20 bg-blue-100 rounded-full mb-6"
-                >
-                  <el-icon :size="40" class="text-blue-600">
-                    <ChatDotRound />
-                  </el-icon>
-                </div>
-                <h2 class="text-3xl font-semibold text-gray-900 mb-2">
-                  {{ authStore.user?.username || '你好' }}, 你好
-                </h2>
-                <p class="text-lg text-gray-500 mb-8">需要我为你做些什么?</p>
-                <!-- 快捷提示按钮 -->
-                <div class="grid grid-cols-2 gap-3 max-w-md mx-auto">
-                  <button
-                    class="px-4 py-3 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-sm text-gray-700"
-                    @click="handleQuickPrompt('帮我写一段代码')"
-                  >
-                    帮我写代码
-                  </button>
-                  <button
-                    class="px-4 py-3 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-sm text-gray-700"
-                    @click="handleQuickPrompt('解释一下这个概念')"
-                  >
-                    解释概念
-                  </button>
-                  <button
-                    class="px-4 py-3 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-sm text-gray-700"
-                    @click="handleQuickPrompt('帮我学习新知识')"
-                  >
-                    帮我学习
-                  </button>
-                  <button
-                    class="px-4 py-3 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-sm text-gray-700"
-                    @click="handleQuickPrompt('给我一些建议')"
-                  >
-                    给我建议
-                  </button>
-                </div>
-              </div>
+              <div
+                class="relative bg-white rounded-[28px] border border-gray-200 shadow-sm hover:shadow-md transition-shadow p-2 pl-5"
+              >
+                <div class="flex flex-col">
+                  <el-input
+                    v-model="inputText"
+                    type="textarea"
+                    :autosize="{ minRows: 1, maxRows: 8 }"
+                    placeholder="输入消息..."
+                    class="gemini-input mt-2"
+                    :disabled="chatStore.isGenerating"
+                    @keydown.ctrl.enter="handleSend"
+                    @keydown.meta.enter="handleSend"
+                  />
 
-              <!-- 输入框（在欢迎界面时显示在中间） -->
-              <transition name="input-fade" mode="out-in">
-                <div
-                  v-if="!route.params.threadId && chatStore.messages.length === 0"
-                  key="input-center"
-                  class="w-full max-w-2xl mx-auto mt-4 input-container input-container-center"
-                >
-                  <div
-                    class="relative bg-white rounded-[28px] border border-gray-200 shadow-sm hover:shadow-md transition-shadow p-2 pl-5"
-                  >
-                    <div class="flex flex-col">
-                      <el-input
-                        v-model="inputText"
-                        type="textarea"
-                        :autosize="{ minRows: 1, maxRows: 8 }"
-                        placeholder="输入消息..."
-                        class="gemini-input mt-2"
-                        :disabled="chatStore.isGenerating"
-                        @keydown.ctrl.enter="handleSend"
-                        @keydown.meta.enter="handleSend"
-                      />
+                  <div class="flex items-center justify-between mt-2 mb-1 pr-2">
+                    <div class="flex items-center gap-1 text-gray-500">
+                      <el-button :icon="Plus" circle text class="!p-2 hover:bg-gray-100" />
+                      <el-button :icon="Picture" circle text class="!p-2 hover:bg-gray-100" />
+                    </div>
 
-                      <div class="flex items-center justify-between mt-2 mb-1 pr-2">
-                        <div class="flex items-center gap-1 text-gray-500">
-                          <el-button :icon="Plus" circle text class="!p-2 hover:bg-gray-100" />
-                          <el-button :icon="Picture" circle text class="!p-2 hover:bg-gray-100" />
-                        </div>
-
-                        <div class="flex items-center">
-                          <transition mode="out-in">
-                            <el-button
-                              v-if="chatStore.isGenerating"
-                              type="danger"
-                              circle
-                              class="!w-10 !h-10 !p-0"
-                              @click="handleInterrupt"
-                            >
-                              <el-icon :size="20">
-                                <Close />
-                              </el-icon>
-                            </el-button>
-                            <el-button
-                              v-else
-                              type="primary"
-                              circle
-                              :disabled="!inputText.trim()"
-                              class="!w-10 !h-10 !p-0 !border-none send-btn"
-                              @click="handleSend"
-                            >
-                              <el-icon :size="20">
-                                <Promotion />
-                              </el-icon>
-                            </el-button>
-                          </transition>
-                        </div>
-                      </div>
+                    <div class="flex items-center">
+                      <transition mode="out-in">
+                        <el-button
+                          v-if="chatStore.isGenerating"
+                          type="danger"
+                          circle
+                          class="!w-10 !h-10 !p-0"
+                          @click="handleInterrupt"
+                        >
+                          <el-icon :size="20">
+                            <Close />
+                          </el-icon>
+                        </el-button>
+                        <el-button
+                          v-else
+                          type="primary"
+                          circle
+                          :disabled="!inputText.trim()"
+                          class="!w-10 !h-10 !p-0 !border-none send-btn"
+                          @click="handleSend"
+                        >
+                          <el-icon :size="20">
+                            <Promotion />
+                          </el-icon>
+                        </el-button>
+                      </transition>
                     </div>
                   </div>
-                  <div class="mt-3 text-[11px] text-gray-400 text-center font-light">
-                    AI 可能会产生错误信息，请核实重要信息。按 Ctrl+Enter 发送
-                  </div>
                 </div>
+              </div>
+              <div class="mt-3 text-[11px] text-gray-400 text-center font-light">
+                AI 可能会产生错误信息，请核实重要信息。按 Ctrl+Enter 发送
+              </div>
+            </div>
+          </transition>
+        </div>
+
+        <div
+          v-for="message in chatStore.messages"
+          :key="message.id"
+          class="flex gap-4"
+          :class="message.role === 'user' ? 'justify-end' : 'justify-start'"
+        >
+          <!-- 用户消息 -->
+          <div v-if="message.role === 'user'" class="flex gap-3 max-w-[80%]">
+            <div class="flex-1">
+              <div class="bg-blue-600 text-white rounded-2xl rounded-tr-sm px-4 py-3 shadow-sm">
+                <p class="text-sm whitespace-pre-wrap break-words">{{ message.content }}</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- AI 回复 -->
+          <div v-else class="flex gap-3 w-[100%]">
+            <div class="flex-1 min-w-0">
+              <div
+                class="rounded-2xl rounded-tl-sm px-4 py-3"
+                :class="message.isError ? 'bg-red-50 border border-red-200' : ''"
+              >
+                <div
+                  v-if="message.content"
+                  class="prose prose-sm max-w-none markdown-body"
+                  :class="message.isError ? 'error-message' : ''"
+                  v-html="renderMarkdown(message.content)"
+                ></div>
+                <div v-else-if="message.isStreaming" class="flex items-center gap-2 text-gray-400">
+                  <span class="inline-block w-2 h-2 bg-gray-400 rounded-full animate-pulse"></span>
+                  <span class="text-sm">AI 正在思考...</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="w-[100%] h-8"></div>
+      </div>
+    </main>
+  </div>
+
+  <!-- 输入框（有消息时显示在底部） -->
+  <transition name="input-fade" mode="out-in">
+    <footer
+      v-if="chatStore.messages.length > 0"
+      key="input-bottom"
+      class="max-w-4xl mx-auto w-full px-4 pb-8 pt-2 bg-transparent input-container input-container-bottom relative"
+    >
+      <div
+        class="absolute -top-8 left-0 right-0 h-8 bg-gradient-to-t from-gray-50 to-transparent pointer-events-none"
+      ></div>
+      <!-- 自动滚动到底部按钮 -->
+      <button
+        v-if="showScrollButton"
+        @click="scrollToBottom(false)"
+        class="absolute left-1/2 -translate-x-1/2 -top-12 w-10 h-10 rounded-full shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center z-10 scroll-to-bottom-btn border"
+        :class="{
+          'animate-pulse border-blue-500 bg-blue-50': chatStore.isGenerating,
+          'bg-white border-gray-300 hover:bg-gray-50': !chatStore.isGenerating,
+        }"
+      >
+        <el-icon :size="18" :style="{ color: chatStore.isGenerating ? '#2563eb' : '#4b5563' }">
+          <ArrowDown />
+        </el-icon>
+      </button>
+      <div
+        class="relative bg-white rounded-[28px] border border-gray-200 shadow-sm hover:shadow-md transition-shadow p-2 pl-5"
+      >
+        <div class="flex flex-col">
+          <el-input
+            v-model="inputText"
+            type="textarea"
+            :autosize="{ minRows: 1, maxRows: 8 }"
+            placeholder="输入消息..."
+            class="gemini-input mt-2"
+            :disabled="chatStore.isGenerating"
+            @keydown.ctrl.enter="handleSend"
+            @keydown.meta.enter="handleSend"
+          />
+
+          <div class="flex items-center justify-between mt-2 mb-1 pr-2">
+            <div class="flex items-center gap-1 text-gray-500">
+              <el-button :icon="Plus" circle text class="!p-2 hover:bg-gray-100" />
+              <el-button :icon="Picture" circle text class="!p-2 hover:bg-gray-100" />
+            </div>
+
+            <div class="flex items-center">
+              <transition mode="out-in">
+                <el-button
+                  v-if="chatStore.isGenerating"
+                  type="danger"
+                  circle
+                  class="!w-10 !h-10 !p-0"
+                  @click="handleInterrupt"
+                >
+                  <el-icon :size="20">
+                    <Close />
+                  </el-icon>
+                </el-button>
+                <el-button
+                  v-else
+                  type="primary"
+                  circle
+                  :disabled="!inputText.trim()"
+                  class="!w-10 !h-10 !p-0 !border-none send-btn"
+                  @click="handleSend"
+                >
+                  <el-icon :size="20">
+                    <Promotion />
+                  </el-icon>
+                </el-button>
               </transition>
             </div>
-
-            <div
-              v-for="message in chatStore.messages"
-              :key="message.id"
-              class="flex gap-4"
-              :class="message.role === 'user' ? 'justify-end' : 'justify-start'"
-            >
-              <!-- 用户消息 -->
-              <div v-if="message.role === 'user'" class="flex gap-3 max-w-[80%]">
-                <div class="flex-1">
-                  <div class="bg-blue-600 text-white rounded-2xl rounded-tr-sm px-4 py-3 shadow-sm">
-                    <p class="text-sm whitespace-pre-wrap break-words">{{ message.content }}</p>
-                  </div>
-                </div>
-              </div>
-
-              <!-- AI 回复 -->
-              <div v-else class="flex gap-3 w-[100%]">
-                <div class="flex-1 min-w-0">
-                  <div
-                    class="rounded-2xl rounded-tl-sm px-4 py-3"
-                    :class="message.isError ? 'bg-red-50 border border-red-200' : ''"
-                  >
-                    <div
-                      v-if="message.content"
-                      class="prose prose-sm max-w-none markdown-body"
-                      :class="message.isError ? 'error-message' : ''"
-                      v-html="renderMarkdown(message.content)"
-                    ></div>
-                    <div
-                      v-else-if="message.isStreaming"
-                      class="flex items-center gap-2 text-gray-400"
-                    >
-                      <span
-                        class="inline-block w-2 h-2 bg-gray-400 rounded-full animate-pulse"
-                      ></span>
-                      <span class="text-sm">AI 正在思考...</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="w-[100%] h-8"></div>
           </div>
-        </main>
+        </div>
       </div>
-
-      <!-- 输入框（有消息时显示在底部） -->
-      <transition name="input-fade" mode="out-in">
-        <footer
-          v-if="chatStore.messages.length > 0"
-          key="input-bottom"
-          class="max-w-4xl mx-auto w-full px-4 pb-8 pt-2 bg-transparent input-container input-container-bottom relative"
-        >
-          <div
-            class="absolute -top-8 left-0 right-0 h-8 bg-gradient-to-t from-gray-50 to-transparent pointer-events-none"
-          ></div>
-          <!-- 自动滚动到底部按钮 -->
-          <button
-            v-if="showScrollButton"
-            @click="scrollToBottom(false)"
-            class="absolute left-1/2 -translate-x-1/2 -top-12 w-10 h-10 rounded-full shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center z-10 scroll-to-bottom-btn border"
-            :class="{
-              'animate-pulse border-blue-500 bg-blue-50': chatStore.isGenerating,
-              'bg-white border-gray-300 hover:bg-gray-50': !chatStore.isGenerating,
-            }"
-          >
-            <el-icon :size="18" :style="{ color: chatStore.isGenerating ? '#2563eb' : '#4b5563' }">
-              <ArrowDown />
-            </el-icon>
-          </button>
-          <div
-            class="relative bg-white rounded-[28px] border border-gray-200 shadow-sm hover:shadow-md transition-shadow p-2 pl-5"
-          >
-            <div class="flex flex-col">
-              <el-input
-                v-model="inputText"
-                type="textarea"
-                :autosize="{ minRows: 1, maxRows: 8 }"
-                placeholder="输入消息..."
-                class="gemini-input mt-2"
-                :disabled="chatStore.isGenerating"
-                @keydown.ctrl.enter="handleSend"
-                @keydown.meta.enter="handleSend"
-              />
-
-              <div class="flex items-center justify-between mt-2 mb-1 pr-2">
-                <div class="flex items-center gap-1 text-gray-500">
-                  <el-button :icon="Plus" circle text class="!p-2 hover:bg-gray-100" />
-                  <el-button :icon="Picture" circle text class="!p-2 hover:bg-gray-100" />
-                </div>
-
-                <div class="flex items-center">
-                  <transition mode="out-in">
-                    <el-button
-                      v-if="chatStore.isGenerating"
-                      type="danger"
-                      circle
-                      class="!w-10 !h-10 !p-0"
-                      @click="handleInterrupt"
-                    >
-                      <el-icon :size="20">
-                        <Close />
-                      </el-icon>
-                    </el-button>
-                    <el-button
-                      v-else
-                      type="primary"
-                      circle
-                      :disabled="!inputText.trim()"
-                      class="!w-10 !h-10 !p-0 !border-none send-btn"
-                      @click="handleSend"
-                    >
-                      <el-icon :size="20">
-                        <Promotion />
-                      </el-icon>
-                    </el-button>
-                  </transition>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="mt-3 text-[11px] text-gray-400 text-center font-light">
-            AI 可能会产生错误信息，请核实重要信息。按 Ctrl+Enter 发送
-          </div>
-        </footer>
-      </transition>
-    </div>
-  </div>
+      <div class="mt-3 text-[11px] text-gray-400 text-center font-light">
+        AI 可能会产生错误信息，请核实重要信息。按 Ctrl+Enter 发送
+      </div>
+    </footer>
+  </transition>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick, watch, onMounted } from 'vue'
+import { ref, computed, nextTick, watch, onMounted, inject } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Promotion, Close, Plus, Picture, ArrowDown } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { useChatStore } from '@/stores/chat'
-import ThreadSidebar from '@/components/ThreadSidebar.vue'
-import ChatHeader from '@/components/ChatHeader.vue'
 import { createMarkdownRenderer, renderMarkdown as renderMarkdownUtil } from '@monorepo/utils'
+
+const setHeaderTitle = inject<(t: string | null) => void>('setHeaderTitle')
 import 'highlight.js/styles/github-dark.css'
 
 const router = useRouter()
@@ -435,13 +417,6 @@ async function handleInterrupt() {
   ElMessage.info('已停止生成')
 }
 
-/**
- * 处理退出登录（在导航栏退出登录后调用，用于清理会话状态）
- */
-function handleLogout() {
-  chatStore.createNewThread()
-}
-
 // 监听路由变化，加载对应的会话
 watch(
   () => route.params.threadId,
@@ -490,10 +465,12 @@ function handleScroll() {
   updateScrollButtonVisibility()
 }
 
-onMounted(async () => {
-  // 加载会话列表
-  await chatStore.loadThreads()
+watch(currentThreadTitle, t => {
+  setHeaderTitle?.(t ?? null)
+})
 
+onMounted(async () => {
+  setHeaderTitle?.(currentThreadTitle.value ?? null)
   // 如果路由中有 threadId，加载对应的会话（仅在首次加载时）
   const threadId = route.params.threadId
   if (threadId && typeof threadId === 'string') {

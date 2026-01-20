@@ -5,10 +5,6 @@ const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     {
-      path: '/',
-      redirect: '/chat',
-    },
-    {
       path: '/login',
       name: 'login',
       component: () => import('../views/LoginView.vue'),
@@ -21,16 +17,27 @@ const router = createRouter({
       meta: { requiresAuth: false },
     },
     {
-      path: '/chat',
-      name: 'chat',
-      component: () => import('../views/ChatView.vue'),
+      path: '/',
+      component: () => import('../components/Layout.vue'),
       meta: { requiresAuth: true },
-    },
-    {
-      path: '/chat/:threadId',
-      name: 'chat-thread',
-      component: () => import('../views/ChatView.vue'),
-      meta: { requiresAuth: true },
+      children: [
+        { path: '', redirect: { name: 'chat' } },
+        {
+          path: 'chat',
+          name: 'chat',
+          component: () => import('../views/ChatView.vue'),
+        },
+        {
+          path: 'chat/:threadId',
+          name: 'chat-thread',
+          component: () => import('../views/ChatView.vue'),
+        },
+        {
+          path: 'agents',
+          name: 'agents',
+          component: () => import('../views/AgentsView.vue'),
+        },
+      ],
     },
   ],
 })
