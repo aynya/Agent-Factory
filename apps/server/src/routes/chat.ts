@@ -100,9 +100,9 @@ router.post(
         [thread_id, userMessageId]
       );
 
-      // 4. 获取 Agent 配置
-      const agents = await query<{ system_prompt: string }>(
-        'SELECT system_prompt FROM agents WHERE id = ?',
+      // 4. 获取 Agent 配置（config 为 JSON，内含 system_prompt 等）
+      const agents = await query<{ config: { system_prompt?: string } | null }>(
+        'SELECT config FROM agents WHERE id = ?',
         [agent_id]
       );
 
@@ -116,7 +116,12 @@ router.post(
         return;
       }
 
-      const systemPrompt = agent.system_prompt || '你是一个有用的AI助手';
+      const raw =
+        agent.config && typeof agent.config === 'object'
+          ? (agent.config as Record<string, unknown>).system_prompt
+          : null;
+      const systemPrompt =
+        (typeof raw === 'string' ? raw : null) || '你是一个有用的AI助手';
 
       // 5. 构建 OpenAI 消息格式
       const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
@@ -188,7 +193,7 @@ router.post(
       // 10. 保存 assistant 回复到数据库（包括中断的情况）
       if (fullContent) {
         const isAborted = abortController.signal.aborted;
-        
+
         await query(
           'INSERT INTO messages (id, thread_id, role, content, token) VALUES (?, ?, ?, ?, ?)',
           [assistantMessageId, thread_id, 'assistant', fullContent, totalTokens]
@@ -298,9 +303,9 @@ router.post(
         [userMessageId, thread_id, 'user', content, 0]
       );
 
-      // 3. 获取 Agent 配置（可选，用于测试）
-      const agents = await query<{ system_prompt: string }>(
-        'SELECT system_prompt FROM agents WHERE id = ?',
+      // 3. 获取 Agent 配置（可选，用于测试；config 为 JSON，内含 system_prompt 等）
+      const agents = await query<{ config: { system_prompt?: string } | null }>(
+        'SELECT config FROM agents WHERE id = ?',
         [agent_id]
       );
 
