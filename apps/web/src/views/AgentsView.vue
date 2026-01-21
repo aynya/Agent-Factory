@@ -1,6 +1,16 @@
 <template>
   <div class="flex-1 flex overflow-y-auto">
     <main class="flex-1 flex flex-col max-w-4xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6">
+      <!-- 页面标题 -->
+      <section class="page-title mb-6">
+        <h1 class="page-title__main">
+          {{ viewMode === 'all' ? '探索智能体' : '我的智能体' }}
+        </h1>
+        <p class="page-title__sub">
+          {{ viewMode === 'all' ? '发现优质智能体，按标签或分类筛选' : '管理您创建的智能体' }}
+        </p>
+      </section>
+
       <!-- 分类标签行：前五个为一组在 start，后两个为一组在 end -->
       <div
         class="flex flex-row flex-wrap items-center justify-between gap-4 py-4 border-b border-gray-200"
@@ -185,6 +195,22 @@ function handleViewMine() {
 </script>
 
 <style scoped>
+.page-title__main {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #111827;
+  letter-spacing: -0.02em;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  line-height: 1.3;
+}
+
+.page-title__sub {
+  margin-top: 0.375rem;
+  font-size: 0.9375rem;
+  color: #6b7280;
+  line-height: 1.5;
+}
+
 .category-tag {
   padding: 0.5rem 1rem;
   border-radius: 9999px;
