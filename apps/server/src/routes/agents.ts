@@ -180,6 +180,70 @@ router.post(
 );
 
 /**
+ * 删除当前用户的 Agent
+ * DELETE /api/agents/:agentId
+ * 仅允许删除自己创建的 agent（creator_id 须为当前用户）
+ */
+router.delete(
+  '/:agentId',
+  authenticateToken,
+  async (req: Request, res: Response<ApiResponse<null>>) => {
+    try {
+      const userId = (
+        req as Request & { user: { user_id: string; username: string } }
+      ).user.user_id;
+      const agentId = req.params.agentId?.trim();
+      if (!agentId) {
+        res.status(400).json({
+          code: 4001,
+          message: 'agentId is required',
+          data: null,
+        });
+        return;
+      }
+
+      const rows = await query<{ id: string; creator_id: string | null }>(
+        'SELECT id, creator_id FROM agents WHERE id = ?',
+        [agentId]
+      );
+      if (rows.length === 0) {
+        res.status(404).json({
+          code: 404,
+          message: 'agent not found',
+          data: null,
+        });
+        return;
+      }
+      const creatorId = rows[0]?.creator_id;
+      if (!creatorId || creatorId !== userId) {
+        res.status(403).json({
+          code: 403,
+          message: 'forbidden: you can only delete your own agents',
+          data: null,
+        });
+        return;
+      }
+
+      await query('DELETE FROM threads WHERE agent_id = ?', [agentId]);
+      await query('DELETE FROM agents WHERE id = ?', [agentId]);
+
+      res.json({
+        code: 0,
+        message: 'delete agent success',
+        data: null,
+      });
+    } catch (error) {
+      console.error('Delete agent error:', error);
+      res.status(500).json({
+        code: 5000,
+        message: 'Internal server error',
+        data: null,
+      });
+    }
+  }
+);
+
+/**
  * 获取所有公开智能体
  * GET /api/agents?status=public
  * GET /api/agents?status=public&tag=assistant
