@@ -55,7 +55,7 @@ VALUES (
   '系统内置AI助手',
   NULL,
   NULL,
-  'private',
+  'public',
   '{"system_prompt":"你是一个有用的AI助手"}',
   NULL
 )

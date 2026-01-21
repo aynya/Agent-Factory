@@ -141,3 +141,47 @@ export interface Message {
   content: string;
   created_at: string;
 }
+
+// Agent types (Phase 2 - 列表接口不包含 config)
+export const AGENT_TAGS = [
+  'assistant',
+  'expert',
+  'creative',
+  'companion',
+  'explore',
+] as const;
+export type AgentTag = (typeof AGENT_TAGS)[number];
+
+export interface AgentListItem {
+  agentId: string;
+  name: string;
+  description: string | null;
+  avatar: string | null;
+  tag: string | null;
+  status: 'private' | 'public';
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AgentInDB {
+  id: string;
+  name: string;
+  description: string | null;
+  avatar: string | null;
+  tag: string | null;
+  status: 'private' | 'public';
+  created_at: string;
+  updated_at: string;
+}
+
+// 创建 Agent
+export interface CreateAgentRequest {
+  name: string;
+  description?: string;
+  tag?: string;
+  avatar?: string;
+}
+
+export interface CreateAgentResponse {
+  agentId: string;
+}
