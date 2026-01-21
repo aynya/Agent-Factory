@@ -11,7 +11,10 @@
             v-for="cat in agentCategories"
             :key="cat.id"
             class="category-tag"
-            :class="{ 'is-active': activeCategory === cat.id }"
+            :class="[
+              activeCategory === cat.id ? tagBadgeTheme(cat.id) : '',
+              { 'is-active': activeCategory === cat.id },
+            ]"
             @click="handleTagClick(cat.id)"
           >
             {{ cat.label }}
@@ -58,37 +61,38 @@
         <div
           v-for="a in agentsStore.agents"
           :key="a.agentId"
-          class="agent-card rounded-xl border border-gray-200 bg-white p-4 shadow-sm hover:shadow-md transition-shadow"
+          class="flex flex-col justify-between p-4 rounded-xl border border-gray-200 bg-white shadow-sm hover:shadow-md transition-shadow"
         >
-          <div class="flex items-start gap-3">
-            <div
-              class="w-12 h-12 rounded-lg bg-gray-100 flex-shrink-0 overflow-hidden flex items-center justify-center"
-            >
-              <img
-                v-if="a.avatar"
-                :src="a.avatar"
-                :alt="a.name"
-                class="w-full h-full object-cover"
-              />
-              <el-icon v-else :size="24" class="text-gray-400">
-                <Avatar />
-              </el-icon>
-            </div>
-            <div class="min-w-0 flex-1">
-              <div class="font-medium text-gray-900 truncate">{{ a.name }}</div>
-              <p class="text-sm text-gray-500 mt-0.5 line-clamp-2">
-                {{ a.description || '暂无描述' }}
-              </p>
-              <div class="flex flex-wrap gap-1.5 mt-2">
-                <span v-if="a.tag" class="tag-badge">{{ tagLabel(a.tag) }}</span>
-                <span
-                  class="status-badge"
-                  :class="a.status === 'public' ? 'status-public' : 'status-private'"
-                >
-                  {{ a.status === 'public' ? '公开' : '仅自己' }}
-                </span>
+          <div>
+            <div class="flex items-start gap-3">
+              <div
+                class="w-12 h-12 rounded-lg bg-gray-100 flex-shrink-0 overflow-hidden flex items-center justify-center"
+              >
+                <img
+                  v-if="a.avatar"
+                  :src="a.avatar"
+                  :alt="a.name"
+                  class="w-full h-full object-cover"
+                />
+                <el-icon v-else :size="24" class="text-gray-400">
+                  <Avatar />
+                </el-icon>
+              </div>
+              <div class="min-w-0 flex-1">
+                <span v-if="a.tag" class="tag-badge" :class="tagBadgeTheme(a.tag)">{{
+                  tagLabel(a.tag)
+                }}</span>
+                <h3 class="font-medium text-gray-900 truncate" :class="{ 'mt-1': a.tag }">
+                  {{ a.name }}
+                </h3>
               </div>
             </div>
+            <p class="text-sm text-gray-500 mt-2 line-clamp-2 desc-fixed">
+              {{ a.description || '暂无描述' }}
+            </p>
+          </div>
+          <div class="mt-4 pt-4 border-t border-gray-100">
+            <span class="text-xs text-gray-400">{{ formatUpdateTime(a.updatedAt) }}</span>
           </div>
         </div>
       </div>
@@ -137,6 +141,26 @@ function tagLabel(tagId: string): string {
   return agentCategories.find(c => c.id === tagId)?.label ?? tagId
 }
 
+/** 标签对应的主题 class，用于卡片内 tag 徽标颜色 */
+function tagBadgeTheme(tagId: string | null): string {
+  if (!tagId) return ''
+  const m: Record<string, string> = {
+    assistant: 'tag-theme-assistant',
+    expert: 'tag-theme-expert',
+    creative: 'tag-theme-creative',
+    companion: 'tag-theme-companion',
+    explore: 'tag-theme-explore',
+  }
+  return m[tagId] ?? ''
+}
+
+/** 格式化为「更新于 yyyy-MM-dd」 */
+function formatUpdateTime(iso: string): string {
+  if (!iso) return ''
+  const d = iso.slice(0, 10)
+  return d ? `更新于 ${d}` : ''
+}
+
 /** 切换标签：选中则设 ?tag=xxx，再点同一标签则取消 tag */
 function handleTagClick(catId: string) {
   const newTag = route.query.tag === catId ? undefined : catId
@@ -182,10 +206,42 @@ function handleViewMine() {
   border-color: #d1d5db;
 }
 
+/* 未命中下面「is-active + 主题」时用的 fallback */
 .category-tag.is-active {
   background: #e8dcff;
   color: #2d1f66;
   border-color: #c9b8f5;
+}
+
+/* 选中时与卡片内 tag 同色：复用 tag-theme-* 的配色 */
+.category-tag.is-active.tag-theme-assistant {
+  background: #dbeafe;
+  color: #1d4ed8;
+  border-color: #bfdbfe;
+}
+
+.category-tag.is-active.tag-theme-expert {
+  background: #ede9fe;
+  color: #5b21b6;
+  border-color: #ddd6fe;
+}
+
+.category-tag.is-active.tag-theme-creative {
+  background: #fce7f3;
+  color: #be185d;
+  border-color: #fbcfe8;
+}
+
+.category-tag.is-active.tag-theme-companion {
+  background: #d1fae5;
+  color: #047857;
+  border-color: #a7f3d0;
+}
+
+.category-tag.is-active.tag-theme-explore {
+  background: #fef3c7;
+  color: #b45309;
+  border-color: #fde68a;
 }
 
 /* 第二组 end 处两个选项的统一样式 */
@@ -224,27 +280,45 @@ function handleViewMine() {
   overflow: hidden;
 }
 
+/* 描述固定两行高度，避免 1 行/2 行切换时卡片高度变化 */
+.desc-fixed {
+  min-height: 2.5rem;
+}
+
 .tag-badge {
-  font-size: 0.75rem;
+  display: inline-flex;
+  align-items: center;
   padding: 0.125rem 0.5rem;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 500;
   border-radius: 9999px;
   background: #f3f4f6;
   color: #4b5563;
 }
 
-.status-badge {
-  font-size: 0.75rem;
-  padding: 0.125rem 0.5rem;
-  border-radius: 9999px;
+.tag-theme-assistant {
+  background: #dbeafe;
+  color: #1d4ed8;
 }
 
-.status-public {
+.tag-theme-expert {
+  background: #ede9fe;
+  color: #5b21b6;
+}
+
+.tag-theme-creative {
+  background: #fce7f3;
+  color: #be185d;
+}
+
+.tag-theme-companion {
   background: #d1fae5;
-  color: #065f46;
+  color: #047857;
 }
 
-.status-private {
-  background: #e5e7eb;
-  color: #4b5563;
+.tag-theme-explore {
+  background: #fef3c7;
+  color: #b45309;
 }
 </style>
