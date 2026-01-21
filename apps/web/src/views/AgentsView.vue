@@ -12,7 +12,7 @@
             :key="cat.id"
             class="category-tag"
             :class="{ 'is-active': activeCategory === cat.id }"
-            @click="activeCategory = activeCategory === cat.id ? null : cat.id"
+            @click="handleTagClick(cat.id)"
           >
             {{ cat.label }}
           </button>
@@ -22,14 +22,14 @@
           <button
             class="end-option-btn"
             :class="{ 'is-active': viewMode === 'all' }"
-            @click="viewMode = 'all'"
+            @click="handleViewAll"
           >
             显示所有
           </button>
           <button
             class="end-option-btn"
             :class="{ 'is-active': viewMode === 'mine' }"
-            @click="handleMyAgents"
+            @click="handleViewMine"
           >
             我的智能体
           </button>
@@ -45,9 +45,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, inject } from 'vue'
+import { computed, onMounted, inject } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 
 const setHeaderTitle = inject<(t: string | null) => void>('setHeaderTitle')
+const route = useRoute()
+const router = useRouter()
 
 const agentCategories = [
   { id: 'assistant', label: '助手' },
@@ -57,17 +60,36 @@ const agentCategories = [
   { id: 'explore', label: '探索' },
 ]
 
-const activeCategory = ref<string | null>(null)
-/** 第二组：'all' 显示所有 agent，'mine' 我的智能体 */
-const viewMode = ref<'all' | 'mine'>('all')
+/** 从路由 path 推导：/agents/me => mine，/agents => all */
+const viewMode = computed<'all' | 'mine'>(() => (route.path.endsWith('/me') ? 'mine' : 'all'))
+
+/** 从路由 query.tag 同步，与标签选择一一对应 */
+const activeCategory = computed<string | null>(() => (route.query.tag as string) || null)
 
 onMounted(() => {
   setHeaderTitle?.('智能体')
 })
 
-function handleMyAgents() {
-  viewMode.value = 'mine'
-  // 后续：加载「我的智能体」列表等
+/** 切换标签：选中则设 ?tag=xxx，再点同一标签则取消 tag */
+function handleTagClick(catId: string) {
+  const newTag = route.query.tag === catId ? undefined : catId
+  router.replace({ path: route.path, query: newTag ? { tag: newTag } : {} })
+}
+
+/** 显示所有：/agents[?tag=xxx] */
+function handleViewAll() {
+  router.replace({
+    path: '/agents',
+    query: route.query.tag ? { tag: route.query.tag } : {},
+  })
+}
+
+/** 我的智能体：/agents/me[?tag=xxx] */
+function handleViewMine() {
+  router.replace({
+    path: '/agents/me',
+    query: route.query.tag ? { tag: route.query.tag } : {},
+  })
 }
 </script>
 

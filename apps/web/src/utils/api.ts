@@ -11,6 +11,7 @@ import type {
   ChatAbortResponse,
   Thread,
   Message,
+  AgentListItem,
 } from '@monorepo/types'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'
@@ -382,4 +383,23 @@ export async function deleteThread(threadId: string): Promise<ApiResponse<null>>
   return request<null>(`/api/chat/thread/${threadId}`, {
     method: 'DELETE',
   })
+}
+
+/**
+ * 获取所有公开智能体
+ * GET /api/agents?status=public[&tag=xxx]
+ */
+export async function getPublicAgents(tag?: string): Promise<ApiResponse<AgentListItem[]>> {
+  const params = new URLSearchParams({ status: 'public' })
+  if (tag) params.set('tag', tag)
+  return request<AgentListItem[]>(`/api/agents?${params}`)
+}
+
+/**
+ * 获取当前用户的智能体列表
+ * GET /api/agents/me[?tag=xxx]
+ */
+export async function getMyAgents(tag?: string): Promise<ApiResponse<AgentListItem[]>> {
+  const url = tag ? `/api/agents/me?tag=${encodeURIComponent(tag)}` : '/api/agents/me'
+  return request<AgentListItem[]>(url)
 }

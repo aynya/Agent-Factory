@@ -36,7 +36,10 @@
       <div class="agent-btn-wrapper w-full flex justify-center mt-2">
         <button
           class="gemini-btn agent-btn group"
-          :class="{ 'is-collapsed': isCollapsed, 'is-active': route.path === '/agents' }"
+          :class="{
+            'is-collapsed': isCollapsed,
+            'is-active': route.path === '/agents' || route.path === '/agents/me',
+          }"
           @click="handleGoAgents"
         >
           <div class="icon-box">
