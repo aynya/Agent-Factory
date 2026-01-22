@@ -191,8 +191,7 @@ function handleViewMine() {
 
 /** 创建新智能体 */
 function handleCreateAgent() {
-  // TODO: 后续对接创建智能体功能
-  console.log('创建新智能体')
+  router.push('/agents/me/create')
 }
 
 /** 打开智能体详情弹窗 */

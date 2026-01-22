@@ -12,6 +12,8 @@ import type {
   Thread,
   Message,
   AgentListItem,
+  CreateAgentRequest,
+  CreateAgentResponse,
 } from '@monorepo/types'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'
@@ -402,4 +404,17 @@ export async function getPublicAgents(tag?: string): Promise<ApiResponse<AgentLi
 export async function getMyAgents(tag?: string): Promise<ApiResponse<AgentListItem[]>> {
   const url = tag ? `/api/agents/me?tag=${encodeURIComponent(tag)}` : '/api/agents/me'
   return request<AgentListItem[]>(url)
+}
+
+/**
+ * 创建智能体
+ * POST /api/agents
+ */
+export async function createAgent(
+  data: CreateAgentRequest
+): Promise<ApiResponse<CreateAgentResponse>> {
+  return request<CreateAgentResponse>('/api/agents', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
 }
