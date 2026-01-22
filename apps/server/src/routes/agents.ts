@@ -3,6 +3,7 @@ import type { Request, Response } from 'express';
 import { query } from '../config/db.js';
 import { generateUUID } from '../utils/uuid.js';
 import { authenticateToken } from '../middleware/auth.js';
+import { saveAvatarFromBase64, deleteAvatarFile, isBase64Image } from '../utils/avatar.js';
 import type {
   ApiResponse,
   AgentInDB,
@@ -152,6 +153,28 @@ router.post(
       const agentId = generateUUID();
       const initialConfig = JSON.stringify({ system_prompt: '' });
 
+      // 处理头像：如果是 base64，保存为文件并获取相对路径
+      let avatarUrl: string | null = null;
+      if (avatar != null && avatar !== '') {
+        const avatarStr = String(avatar).trim();
+        if (isBase64Image(avatarStr)) {
+          try {
+            avatarUrl = saveAvatarFromBase64(avatarStr);
+          } catch (error) {
+            console.error('Save avatar error:', error);
+            res.status(400).json({
+              code: 4001,
+              message: error instanceof Error ? error.message : '图片处理失败',
+              data: null,
+            });
+            return;
+          }
+        } else {
+          // 如果不是 base64，直接使用（可能是 URL 或 null）
+          avatarUrl = avatarStr || null;
+        }
+      }
+
       await query(
         `INSERT INTO agents (id, name, description, avatar, tag, status, config, creator_id)
          VALUES (?, ?, ?, ?, ?, 'private', ?, ?)`,
@@ -159,7 +182,7 @@ router.post(
           agentId,
           trimmedName,
           description != null ? String(description).trim() || null : null,
-          avatar != null ? String(avatar).trim() || null : null,
+          avatarUrl,
           tag != null && String(tag).trim() !== '' ? String(tag).trim() : null,
           initialConfig,
           userId,
@@ -205,8 +228,8 @@ router.delete(
         return;
       }
 
-      const rows = await query<{ id: string; creator_id: string | null }>(
-        'SELECT id, creator_id FROM agents WHERE id = ?',
+      const rows = await query<{ id: string; creator_id: string | null; avatar: string | null }>(
+        'SELECT id, creator_id, avatar FROM agents WHERE id = ?',
         [agentId]
       );
       if (rows.length === 0) {
@@ -217,7 +240,8 @@ router.delete(
         });
         return;
       }
-      const creatorId = rows[0]?.creator_id;
+      const agent = rows[0];
+      const creatorId = agent?.creator_id;
       if (!creatorId || creatorId !== userId) {
         res.status(403).json({
           code: 403,
@@ -227,7 +251,15 @@ router.delete(
         return;
       }
 
+      // 删除关联的 threads
       await query('DELETE FROM threads WHERE agent_id = ?', [agentId]);
+
+      // 删除头像文件（如果存在）
+      if (agent.avatar) {
+        deleteAvatarFile(agent.avatar);
+      }
+
+      // 删除 agent 记录
       await query('DELETE FROM agents WHERE id = ?', [agentId]);
 
       res.json({
@@ -442,10 +474,44 @@ router.put(
 
       // 更新 avatar
       if (updateData.avatar !== undefined) {
+        let avatarUrl: string | null = null;
+        const avatarValue = updateData.avatar != null ? String(updateData.avatar).trim() : null;
+
+        if (avatarValue) {
+          if (isBase64Image(avatarValue)) {
+            // 如果是 base64，保存为新文件
+            try {
+              avatarUrl = saveAvatarFromBase64(avatarValue);
+              // 删除旧图片（如果有）
+              if (agent.avatar) {
+                deleteAvatarFile(agent.avatar);
+              }
+            } catch (error) {
+              console.error('Save avatar error:', error);
+              res.status(400).json({
+                code: 4001,
+                message: error instanceof Error ? error.message : '图片处理失败',
+                data: null,
+              });
+              return;
+            }
+          } else {
+            // 如果不是 base64，直接使用（可能是 URL）
+            avatarUrl = avatarValue;
+            // 如果新 URL 与旧 URL 不同，删除旧图片
+            if (agent.avatar && agent.avatar !== avatarUrl) {
+              deleteAvatarFile(agent.avatar);
+            }
+          }
+        } else {
+          // 如果设置为 null，删除旧图片
+          if (agent.avatar) {
+            deleteAvatarFile(agent.avatar);
+          }
+        }
+
         updateFields.push('avatar = ?');
-        updateValues.push(
-          updateData.avatar != null ? String(updateData.avatar).trim() || null : null
-        );
+        updateValues.push(avatarUrl);
       }
 
       // 更新 tag

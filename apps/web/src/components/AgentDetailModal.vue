@@ -34,7 +34,7 @@
             >
               <img
                 v-if="agent.avatar"
-                :src="agent.avatar"
+                :src="getAvatarUrl(agent.avatar)"
                 :alt="agent.name"
                 class="w-full h-full object-cover"
               />
@@ -137,6 +137,7 @@
 import { watch, onUnmounted } from 'vue'
 import { Avatar, Close, Calendar, Promotion, Share } from '@element-plus/icons-vue'
 import type { AgentListItem } from '@monorepo/types'
+import { getAvatarUrl } from '@/utils/avatar'
 
 const props = defineProps<{
   agent: AgentListItem | null

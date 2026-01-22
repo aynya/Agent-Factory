@@ -7,6 +7,8 @@ import { initDatabase } from './config/init-db.js';
 import authRoutes from './routes/auth.js';
 import chatRoutes from './routes/chat.js';
 import agentsRoutes from './routes/agents.js';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 // Load environment variables
 dotenv.config();
@@ -21,8 +23,13 @@ app.use(
     credentials: true, // 允许携带cookie
   })
 );
-app.use(express.json());
+app.use(express.json({ limit: '3mb' })); // 增加 JSON 大小限制以支持 base64 图片（2MB 图片 base64 编码后约 2.67MB）
 app.use(cookieParser());
+
+// 配置静态文件服务
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // 路由注册
 app.use('/api/auth', authRoutes);

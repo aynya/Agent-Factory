@@ -28,7 +28,7 @@
               >
                 <img
                   v-if="avatar"
-                  :src="avatar"
+                  :src="getAvatarUrl(avatar)"
                   alt="Avatar Preview"
                   class="w-full h-full object-cover"
                 />
@@ -156,6 +156,7 @@ import { useRouter } from 'vue-router'
 import { ArrowLeft, Avatar, Picture, Check, Loading } from '@element-plus/icons-vue'
 import { createAgent } from '@/utils/api'
 import { ElMessage } from 'element-plus'
+import { getAvatarUrl } from '@/utils/avatar'
 
 const router = useRouter()
 const setHeaderTitle = inject<(t: string | null) => void>('setHeaderTitle')
@@ -194,11 +195,25 @@ function handleImageUpload(e: Event) {
   const target = e.target as HTMLInputElement
   const file = target.files?.[0]
   if (file) {
-    const reader = new FileReader()
-    reader.onloadend = () => {
-      avatar.value = reader.result as string
+    try {
+      // 检查文件大小（限制为 2MB）
+      if (file.size > 2 * 1024 * 1024) {
+        ElMessage.warning('图片大小不能超过 2MB')
+        return
+      }
+
+      // 读取为 base64 用于预览（保存时会上传到服务器）
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        const base64 = reader.result as string
+        // 显示预览（base64）
+        avatar.value = base64
+      }
+      reader.readAsDataURL(file)
+    } catch (error) {
+      console.error('Image read error:', error)
+      ElMessage.error('图片读取失败')
     }
-    reader.readAsDataURL(file)
   }
 }
 

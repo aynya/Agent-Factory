@@ -12,7 +12,7 @@
       >
         <img
           v-if="agent.avatar"
-          :src="agent.avatar"
+          :src="getAvatarUrl(agent.avatar)"
           :alt="agent.name"
           class="w-full h-full object-cover agent-card__avatar-img"
         />
@@ -71,6 +71,7 @@
 <script setup lang="ts">
 import { Avatar, DeleteFilled, Tools } from '@element-plus/icons-vue'
 import type { AgentListItem } from '@monorepo/types'
+import { getAvatarUrl } from '@/utils/avatar'
 
 const props = defineProps<{
   agent: AgentListItem

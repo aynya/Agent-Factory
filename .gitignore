@@ -58,3 +58,6 @@ coverage/
 
 # Vue
 *.vue.shadow.css
+
+# 上传文件目录
+apps/server/uploads/

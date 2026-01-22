@@ -250,8 +250,7 @@ async function handleDeleteAgent(agent: AgentListItem) {
 
 /** 配置智能体 */
 function handleConfigureAgent(agent: AgentListItem) {
-  // TODO: 后续对接配置功能
-  console.log('配置:', agent.agentId)
+  router.push(`/agents/me/${agent.agentId}`)
 }
 </script>
 

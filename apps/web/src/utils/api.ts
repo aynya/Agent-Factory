@@ -14,6 +14,8 @@ import type {
   AgentListItem,
   CreateAgentRequest,
   CreateAgentResponse,
+  AgentDetail,
+  UpdateAgentRequest,
 } from '@monorepo/types'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'
@@ -426,5 +428,29 @@ export async function createAgent(
 export async function deleteAgent(agentId: string): Promise<ApiResponse<null>> {
   return request<null>(`/api/agents/${agentId}`, {
     method: 'DELETE',
+  })
+}
+
+/**
+ * 获取智能体详情
+ * GET /api/agents/:agentId
+ */
+export async function getAgentDetail(agentId: string): Promise<ApiResponse<AgentDetail>> {
+  return request<AgentDetail>(`/api/agents/${agentId}`, {
+    method: 'GET',
+  })
+}
+
+/**
+ * 更新智能体配置
+ * PUT /api/agents/:agentId
+ */
+export async function updateAgent(
+  agentId: string,
+  data: UpdateAgentRequest
+): Promise<ApiResponse<null>> {
+  return request<null>(`/api/agents/${agentId}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
   })
 }
