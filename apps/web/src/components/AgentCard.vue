@@ -41,21 +41,57 @@
 
     <div class="pt-5 border-t border-slate-50 flex items-center justify-between relative z-10">
       <span class="text-xs text-slate-400">{{ formatUpdateTime(agent.updatedAt) }}</span>
+      <!-- 操作按钮：只有所有者才显示 -->
+      <div v-if="isOwner" class="flex items-center gap-2" @click.stop>
+        <!-- 删除按钮：hover 显示 -->
+        <button
+          @click="handleDelete"
+          class="opacity-0 group-hover:opacity-100 h-8 w-8 rounded-lg bg-rose-50 text-rose-500 flex items-center justify-center hover:bg-rose-500 hover:text-white transition-all duration-300"
+          aria-label="删除"
+        >
+          <el-icon :size="15">
+            <DeleteFilled />
+          </el-icon>
+        </button>
+        <!-- 配置按钮：常驻显示 -->
+        <button
+          @click="handleConfigure"
+          class="h-8 w-8 rounded-lg bg-slate-50 text-slate-500 flex items-center justify-center hover:bg-indigo-600 hover:text-white transition-all duration-300"
+          aria-label="配置"
+        >
+          <el-icon :size="15">
+            <Tools />
+          </el-icon>
+        </button>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { Avatar } from '@element-plus/icons-vue'
+import { Avatar, DeleteFilled, Tools } from '@element-plus/icons-vue'
 import type { AgentListItem } from '@monorepo/types'
 
-defineProps<{
+const props = defineProps<{
   agent: AgentListItem
+  isOwner?: boolean
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
   click: [agent: AgentListItem]
+  delete: [agent: AgentListItem]
+  configure: [agent: AgentListItem]
 }>()
+
+function handleDelete(e: Event) {
+  e.stopPropagation()
+  emit('delete', props.agent)
+}
+
+function handleConfigure(e: Event) {
+  e.stopPropagation()
+  emit('configure', props.agent)
+}
 
 const agentCategories = [
   { id: 'assistant', label: '助手' },

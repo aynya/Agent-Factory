@@ -91,7 +91,10 @@
           v-for="a in agentsStore.agents"
           :key="a.agentId"
           :agent="a"
+          :is-owner="viewMode === 'mine'"
           @click="openAgentDetail"
+          @delete="handleDeleteAgent"
+          @configure="handleConfigureAgent"
         />
       </div>
     </main>
@@ -110,8 +113,10 @@
 import { ref, computed, watch, onMounted, onUnmounted, inject } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Loading, Plus } from '@element-plus/icons-vue'
+import { ElMessageBox, ElMessage } from 'element-plus'
 import type { AgentListItem } from '@monorepo/types'
 import { useAgentsStore } from '@/stores/agents'
+import { deleteAgent } from '@/utils/api'
 import AgentCard from '@/components/AgentCard.vue'
 import AgentDetailModal from '@/components/AgentDetailModal.vue'
 
@@ -215,6 +220,38 @@ function handleStartUsing(agent: AgentListItem) {
 function handleShare(agent: AgentListItem) {
   // TODO: 后续对接分享功能
   console.log('分享:', agent.agentId)
+}
+
+/** 删除智能体 */
+async function handleDeleteAgent(agent: AgentListItem) {
+  try {
+    await ElMessageBox.confirm('确定要删除此智能体吗？删除后无法恢复。', '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning',
+    })
+
+    const result = await deleteAgent(agent.agentId)
+    if (result.code === 0) {
+      ElMessage.success('已删除智能体')
+      // 重新获取列表
+      agentsStore.fetchAgents(viewMode.value, activeCategory.value ?? undefined)
+    } else {
+      ElMessage.error(result.message || '删除失败')
+    }
+  } catch (error) {
+    // 用户取消删除
+    if (error !== 'cancel') {
+      console.error('Delete agent error:', error)
+      ElMessage.error('删除失败')
+    }
+  }
+}
+
+/** 配置智能体 */
+function handleConfigureAgent(agent: AgentListItem) {
+  // TODO: 后续对接配置功能
+  console.log('配置:', agent.agentId)
 }
 </script>
 

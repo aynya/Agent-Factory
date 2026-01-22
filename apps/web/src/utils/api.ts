@@ -418,3 +418,13 @@ export async function createAgent(
     body: JSON.stringify(data),
   })
 }
+
+/**
+ * 删除智能体
+ * DELETE /api/agents/:agentId
+ */
+export async function deleteAgent(agentId: string): Promise<ApiResponse<null>> {
+  return request<null>(`/api/agents/${agentId}`, {
+    method: 'DELETE',
+  })
+}
