@@ -62,59 +62,58 @@
         <p class="text-sm text-red-500">{{ agentsStore.error }}</p>
       </div>
       <div
-        v-else-if="agentsStore.agents.length === 0"
+        v-else-if="agentsStore.agents.length === 0 && viewMode === 'all'"
         class="flex-1 flex items-center justify-center text-gray-400 mt-12"
       >
-        <p class="text-sm">{{ viewMode === 'mine' ? '暂无我的智能体' : '暂无公开智能体' }}</p>
+        <p class="text-sm">暂无公开智能体</p>
       </div>
-      <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
+      <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 mt-6">
+        <!-- 添加智能体卡片（仅在我的智能体时显示） -->
         <div
+          v-if="viewMode === 'mine'"
+          class="create-agent-card group relative flex flex-col items-center justify-center text-center cursor-pointer h-full bg-slate-50/50 rounded-[24px] p-6 border-2 border-dashed border-slate-200 transition-all duration-300"
+          @click="handleCreateAgent"
+        >
+          <div
+            class="w-16 h-16 rounded-2xl bg-white border border-slate-100 shadow-sm flex items-center justify-center mb-4 transition-all duration-500 create-agent-card__icon-box"
+          >
+            <el-icon :size="20" class="text-slate-400 create-agent-card__icon">
+              <Plus />
+            </el-icon>
+          </div>
+          <h3 class="text-[17px] font-bold text-slate-800 mb-2">创建新智能体</h3>
+          <p class="text-slate-400 text-sm max-w-[180px]">
+            定制属于你自己的 AI 助手，开启智能办公新体验。
+          </p>
+        </div>
+
+        <AgentCard
           v-for="a in agentsStore.agents"
           :key="a.agentId"
-          class="flex flex-col justify-between p-4 rounded-xl border border-gray-200 bg-white shadow-sm hover:shadow-md transition-shadow"
-        >
-          <div>
-            <div class="flex items-start gap-3">
-              <div
-                class="w-12 h-12 rounded-lg bg-gray-100 flex-shrink-0 overflow-hidden flex items-center justify-center"
-              >
-                <img
-                  v-if="a.avatar"
-                  :src="a.avatar"
-                  :alt="a.name"
-                  class="w-full h-full object-cover"
-                />
-                <el-icon v-else :size="24" class="text-gray-400">
-                  <Avatar />
-                </el-icon>
-              </div>
-              <div class="min-w-0 flex-1">
-                <span v-if="a.tag" class="tag-badge" :class="tagBadgeTheme(a.tag)">{{
-                  tagLabel(a.tag)
-                }}</span>
-                <h3 class="font-medium text-gray-900 truncate" :class="{ 'mt-1': a.tag }">
-                  {{ a.name }}
-                </h3>
-              </div>
-            </div>
-            <p class="text-sm text-gray-500 mt-2 line-clamp-2 desc-fixed">
-              {{ a.description || '暂无描述' }}
-            </p>
-          </div>
-          <div class="mt-4 pt-4 border-t border-gray-100">
-            <span class="text-xs text-gray-400">{{ formatUpdateTime(a.updatedAt) }}</span>
-          </div>
-        </div>
+          :agent="a"
+          @click="openAgentDetail"
+        />
       </div>
     </main>
+
+    <!-- 智能体详情弹窗 -->
+    <AgentDetailModal
+      :agent="selectedAgent"
+      @close="closeAgentDetail"
+      @start-using="handleStartUsing"
+      @share="handleShare"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, watch, onMounted, inject } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, inject } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Loading, Avatar } from '@element-plus/icons-vue'
+import { Loading, Plus } from '@element-plus/icons-vue'
+import type { AgentListItem } from '@monorepo/types'
 import { useAgentsStore } from '@/stores/agents'
+import AgentCard from '@/components/AgentCard.vue'
+import AgentDetailModal from '@/components/AgentDetailModal.vue'
 
 const setHeaderTitle = inject<(t: string | null) => void>('setHeaderTitle')
 const route = useRoute()
@@ -135,8 +134,16 @@ const viewMode = computed<'all' | 'mine'>(() => (route.path.endsWith('/me') ? 'm
 /** 从路由 query.tag 同步，与标签选择一一对应 */
 const activeCategory = computed<string | null>(() => (route.query.tag as string) || null)
 
+/** 选中的智能体（用于详情弹窗） */
+const selectedAgent = ref<AgentListItem | null>(null)
+
 onMounted(() => {
   setHeaderTitle?.('智能体')
+})
+
+onUnmounted(() => {
+  // 确保关闭弹窗时恢复滚动
+  document.body.style.overflow = ''
 })
 
 watch(
@@ -147,11 +154,7 @@ watch(
   { immediate: true }
 )
 
-function tagLabel(tagId: string): string {
-  return agentCategories.find(c => c.id === tagId)?.label ?? tagId
-}
-
-/** 标签对应的主题 class，用于卡片内 tag 徽标颜色 */
+/** 标签对应的主题 class，用于分类标签按钮 */
 function tagBadgeTheme(tagId: string | null): string {
   if (!tagId) return ''
   const m: Record<string, string> = {
@@ -162,13 +165,6 @@ function tagBadgeTheme(tagId: string | null): string {
     explore: 'tag-theme-explore',
   }
   return m[tagId] ?? ''
-}
-
-/** 格式化为「更新于 yyyy-MM-dd」 */
-function formatUpdateTime(iso: string): string {
-  if (!iso) return ''
-  const d = iso.slice(0, 10)
-  return d ? `更新于 ${d}` : ''
 }
 
 /** 切换标签：选中则设 ?tag=xxx，再点同一标签则取消 tag */
@@ -191,6 +187,35 @@ function handleViewMine() {
     path: '/agents/me',
     query: route.query.tag ? { tag: route.query.tag } : {},
   })
+}
+
+/** 创建新智能体 */
+function handleCreateAgent() {
+  // TODO: 后续对接创建智能体功能
+  console.log('创建新智能体')
+}
+
+/** 打开智能体详情弹窗 */
+function openAgentDetail(agent: AgentListItem) {
+  selectedAgent.value = agent
+}
+
+/** 关闭智能体详情弹窗 */
+function closeAgentDetail() {
+  selectedAgent.value = null
+}
+
+/** 开始使用智能体 */
+function handleStartUsing(agent: AgentListItem) {
+  // TODO: 后续对接跳转到聊天页面或工作台
+  console.log('开始使用:', agent.agentId)
+  closeAgentDetail()
+}
+
+/** 分享智能体 */
+function handleShare(agent: AgentListItem) {
+  // TODO: 后续对接分享功能
+  console.log('分享:', agent.agentId)
 }
 </script>
 
@@ -298,53 +323,29 @@ function handleViewMine() {
   border-color: #c7d2fe;
 }
 
-.line-clamp-2 {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+/* 创建智能体卡片样式 */
+.create-agent-card:hover {
+  border-color: #818cf8;
+  background: white;
 }
 
-/* 描述固定两行高度，避免 1 行/2 行切换时卡片高度变化 */
-.desc-fixed {
-  min-height: 2.5rem;
+.create-agent-card__icon-box {
+  transition:
+    transform 0.5s ease,
+    background-color 0.5s ease;
 }
 
-.tag-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.125rem 0.5rem;
-  font-size: 0.75rem;
-  line-height: 1rem;
-  font-weight: 500;
-  border-radius: 9999px;
-  background: #f3f4f6;
-  color: #4b5563;
+.create-agent-card:hover .create-agent-card__icon-box {
+  transform: scale(1.1);
+  background-color: #4f46e5;
 }
 
-.tag-theme-assistant {
-  background: #dbeafe;
-  color: #1d4ed8;
+.create-agent-card__icon {
+  color: #94a3b8;
+  transition: color 0.5s ease;
 }
 
-.tag-theme-expert {
-  background: #ede9fe;
-  color: #5b21b6;
-}
-
-.tag-theme-creative {
-  background: #fce7f3;
-  color: #be185d;
-}
-
-.tag-theme-companion {
-  background: #d1fae5;
-  color: #047857;
-}
-
-.tag-theme-explore {
-  background: #fef3c7;
-  color: #b45309;
+.create-agent-card:hover .create-agent-card__icon {
+  color: white;
 }
 </style>
