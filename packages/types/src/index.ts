@@ -185,3 +185,32 @@ export interface CreateAgentRequest {
 export interface CreateAgentResponse {
   agentId: string;
 }
+
+// Agent 配置类型
+export interface AgentConfig {
+  systemPrompt: string;
+  ragConfig: unknown | null;
+  mcpConfig: unknown | null;
+}
+
+// Agent 详情（包含配置）
+export interface AgentDetail {
+  agentId: string;
+  name: string;
+  description: string | null;
+  avatar: string | null;
+  tag: string | null;
+  status: 'private' | 'public';
+  config: AgentConfig;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// 更新 Agent
+export interface UpdateAgentRequest {
+  name?: string;
+  description?: string;
+  avatar?: string;
+  tag?: string;
+  config?: AgentConfig;
+}
