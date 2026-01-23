@@ -364,7 +364,7 @@ import {
 } from '@element-plus/icons-vue'
 import type { UpdateAgentRequest } from '@monorepo/types'
 import { getAgentDetail, updateAgent } from '@/utils/api'
-import { getAvatarUrl } from '@/utils/avatar'
+import { getAvatarUrl, handleImageUpload as handleImageUploadUtil } from '@/utils/avatar'
 
 const setHeaderTitle = inject<(t: string | null) => void>('setHeaderTitle')
 const route = useRoute()
@@ -440,28 +440,17 @@ function handleAvatarClick() {
   fileInputRef.value?.click()
 }
 
-function handleImageUpload(e: Event) {
+async function handleImageUpload(e: Event) {
   const target = e.target as HTMLInputElement
   const file = target.files?.[0]
   if (file) {
     try {
-      // 检查文件大小（限制为 2MB）
-      if (file.size > 2 * 1024 * 1024) {
-        ElMessage.warning('图片大小不能超过 2MB')
-        return
-      }
-
-      // 读取为 base64 用于预览（保存时会上传到服务器）
-      const reader = new FileReader()
-      reader.onloadend = () => {
-        const base64 = reader.result as string
-        // 显示预览（base64）
-        avatar.value = base64
-      }
-      reader.readAsDataURL(file)
+      const base64 = await handleImageUploadUtil(file)
+      // 显示预览（base64）
+      avatar.value = base64
     } catch (error) {
-      console.error('Image read error:', error)
-      ElMessage.error('图片读取失败')
+      // 错误已在工具函数中处理
+      console.error('Image upload error:', error)
     }
   }
 }

@@ -1,6 +1,7 @@
 /**
  * 头像相关工具函数
  */
+import { ElMessage } from 'element-plus'
 
 /**
  * 获取头像 URL（处理相对路径、完整 URL 和 base64）
@@ -52,4 +53,40 @@ export function isRelativePath(str: string | null | undefined): boolean {
     return false
   }
   return !isBase64Image(str) && !isFullUrl(str)
+}
+
+/**
+ * 处理图片上传（读取为 base64 用于预览）
+ * @param file 图片文件
+ * @returns Promise<string> base64 字符串
+ * @throws 如果文件大小超过限制或读取失败
+ */
+export function handleImageUpload(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    try {
+      // 检查文件大小（限制为 2MB）
+      if (file.size > 2 * 1024 * 1024) {
+        ElMessage.warning('图片大小不能超过 2MB')
+        reject(new Error('图片大小不能超过 2MB'))
+        return
+      }
+
+      // 读取为 base64 用于预览（保存时会上传到服务器）
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        const base64 = reader.result as string
+        resolve(base64)
+      }
+      reader.onerror = () => {
+        const error = new Error('图片读取失败')
+        ElMessage.error('图片读取失败')
+        reject(error)
+      }
+      reader.readAsDataURL(file)
+    } catch (error) {
+      console.error('Image read error:', error)
+      ElMessage.error('图片读取失败')
+      reject(error)
+    }
+  })
 }
