@@ -244,7 +244,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick, watch, onMounted, inject } from 'vue'
+import { ref, computed, nextTick, watch, onMounted, onBeforeUnmount, inject } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Promotion, Close, Plus, Picture, ArrowDown } from '@element-plus/icons-vue'
@@ -430,11 +430,12 @@ watch(
       if (chatStore.currentThreadId === threadId && chatStore.isGenerating) {
         return
       }
+      // switchThread 内部会处理中断逻辑（如果切换到不同的 threadId 且正在生成）
       await chatStore.switchThread(threadId)
       scrollToBottom(false)
     } else {
-      // 在 /chat 路由时，清空当前会话
-      chatStore.createNewThread()
+      // 在 /chat 路由时，清空当前会话（会中断生成）
+      await chatStore.createNewThread()
     }
   }
 )
@@ -480,9 +481,16 @@ onMounted(async () => {
     }
   } else {
     // 在 /chat 路由时，清空当前会话
-    chatStore.createNewThread()
+    await chatStore.createNewThread()
   }
   scrollToBottom(false)
+})
+
+// 组件卸载前（离开聊天页面时）中断生成
+onBeforeUnmount(async () => {
+  if (chatStore.isGenerating) {
+    await chatStore.interruptGeneration()
+  }
 })
 </script>
 

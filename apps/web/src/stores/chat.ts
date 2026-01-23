@@ -123,14 +123,21 @@ export const useChatStore = defineStore('chat', () => {
   /**
    * 创建新会话
    */
-  function createNewThread() {
+  async function createNewThread() {
+    // 如果正在生成，先中断生成（包括调用后端 API）
+    if (isGenerating.value && currentThreadId.value) {
+      await interruptGeneration()
+    } else {
+      // 如果没有 threadId 或不在生成，只清理前端状态
+      if (currentAbortController.value) {
+        currentAbortController.value.abort()
+        currentAbortController.value = null
+      }
+      isGenerating.value = false
+    }
+
     currentThreadId.value = null
     messages.value = []
-    isGenerating.value = false
-    if (currentAbortController.value) {
-      currentAbortController.value.abort()
-      currentAbortController.value = null
-    }
     currentMessageId.value = null
   }
 
@@ -144,9 +151,9 @@ export const useChatStore = defineStore('chat', () => {
         // 从列表中移除
         threads.value = threads.value.filter(t => t.threadId !== threadId)
 
-        // 如果删除的是当前会话，切换到新会话
+        // 如果删除的是当前会话，切换到新会话（会中断生成）
         if (currentThreadId.value === threadId) {
-          createNewThread()
+          await createNewThread()
         }
       }
       return response.code === 0
