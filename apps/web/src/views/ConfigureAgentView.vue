@@ -31,7 +31,7 @@
         </div>
         <button
           @click="handleSubmit"
-          :disabled="submitting || !name.trim() || !description.trim()"
+          :disabled="submitting || !description.trim()"
           class="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-5 py-2 rounded-xl text-xs font-bold shadow-lg shadow-indigo-100 transition-all active:scale-95 flex items-center gap-2"
         >
           发布修改
@@ -51,13 +51,13 @@
         class="w-[420px] border-r border-slate-200/60 flex flex-col bg-slate-50/40 overflow-y-auto"
       >
         <div class="p-6 space-y-6">
-          <!-- 头像编辑区域 -->
+          <!-- 头像展示区域（只读） -->
           <div
             class="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col items-center"
           >
-            <div @click="handleAvatarClick" class="relative cursor-pointer group mb-4">
+            <div class="relative mb-4">
               <div
-                class="w-24 h-24 rounded-[32px] overflow-hidden border-4 border-slate-50 shadow-xl group-hover:ring-4 group-hover:ring-indigo-100 transition-all"
+                class="w-24 h-24 rounded-[32px] overflow-hidden border-4 border-slate-50 shadow-xl"
               >
                 <img
                   v-if="avatar"
@@ -74,23 +74,11 @@
                   </el-icon>
                 </div>
               </div>
-              <div
-                class="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity rounded-[32px]"
-              >
-                <el-icon :size="24" class="text-white">
-                  <Picture />
-                </el-icon>
-              </div>
-              <input
-                ref="fileInputRef"
-                type="file"
-                @change="handleImageUpload"
-                class="hidden"
-                accept="image/*"
-              />
             </div>
             <h4 class="font-black text-slate-800">智能体形象</h4>
-            <p class="text-[10px] text-slate-400 mt-1 uppercase tracking-tighter">点击更换外观</p>
+            <p class="text-[10px] text-slate-400 mt-1 uppercase tracking-tighter">
+              仅展示，不可修改
+            </p>
           </div>
 
           <form @submit.prevent="handleSubmit" class="space-y-6 pb-20">
@@ -108,29 +96,17 @@
               </div>
 
               <div class="space-y-4">
+                <!-- 智能体名称（只读展示） -->
                 <div class="space-y-1.5">
                   <label
                     class="text-[11px] font-bold text-slate-400 uppercase tracking-widest ml-1"
                   >
                     智能体名称
                   </label>
-                  <div class="relative">
-                    <input
-                      v-model="name"
-                      type="text"
-                      maxlength="10"
-                      placeholder="例如：写作助手"
-                      class="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 text-slate-900 focus:bg-white focus:ring-4 focus:ring-indigo-50/50 focus:border-indigo-200 transition-all outline-none font-semibold text-sm"
-                      required
-                    />
-                    <span
-                      :class="[
-                        'absolute right-4 top-1/2 -translate-y-1/2 text-[9px] font-bold bg-white/80 px-1 rounded',
-                        name.length === 10 ? 'text-rose-500' : 'text-slate-300',
-                      ]"
-                    >
-                      {{ name.length }}/10
-                    </span>
+                  <div
+                    class="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 text-slate-700 font-semibold text-sm cursor-default"
+                  >
+                    {{ name || '未命名' }}
                   </div>
                 </div>
 
@@ -198,7 +174,7 @@
               </div>
             </section>
 
-            <!-- 模块：分类与标签 -->
+            <!-- 模块：分类与标签（只读展示） -->
             <section class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
               <div class="flex items-center gap-4 mb-4">
                 <div
@@ -211,21 +187,12 @@
                 <h4 class="text-sm font-bold text-slate-800">分类与标签</h4>
               </div>
 
-              <div class="grid grid-cols-3 gap-2">
-                <button
-                  v-for="cat in agentCategories"
-                  :key="cat.id"
-                  type="button"
-                  @click="tag = cat.id"
-                  :class="[
-                    'py-2 rounded-xl text-[11px] font-bold transition-all border',
-                    tag === cat.id
-                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-100'
-                      : 'bg-slate-50 text-slate-500 border-transparent hover:bg-slate-100',
-                  ]"
+              <div class="flex flex-wrap gap-2">
+                <span
+                  class="inline-flex items-center px-3 py-1.5 rounded-xl text-[11px] font-bold bg-slate-100 text-slate-600 border border-slate-200 cursor-default"
                 >
-                  {{ cat.label }}
-                </button>
+                  {{ tagLabel }}
+                </span>
               </div>
             </section>
           </form>
@@ -354,7 +321,6 @@ import {
   Check,
   Loading,
   Avatar,
-  Picture,
   User,
   Document,
   InfoFilled,
@@ -364,13 +330,12 @@ import {
 } from '@element-plus/icons-vue'
 import type { UpdateAgentRequest } from '@monorepo/types'
 import { getAgentDetail, updateAgent } from '@/utils/api'
-import { getAvatarUrl, handleImageUpload as handleImageUploadUtil } from '@/utils/avatar'
+import { getAvatarUrl } from '@/utils/avatar'
 
 const setHeaderTitle = inject<(t: string | null) => void>('setHeaderTitle')
 const route = useRoute()
 const router = useRouter()
 
-const fileInputRef = ref<HTMLInputElement | null>(null)
 const submitting = ref(false)
 const loading = ref(true)
 
@@ -389,6 +354,12 @@ const agentCategories = [
 ]
 
 const suggestions = ['简单介绍下自己', '测试边界条件', '角色扮演测试']
+
+const tagLabel = computed(() => {
+  if (!tag.value) return '未设置'
+  const found = agentCategories.find(c => c.id === tag.value)
+  return found ? found.label : tag.value
+})
 
 const agentId = computed(() => {
   const id = route.params.agentId
@@ -436,33 +407,9 @@ function handleBack() {
   router.back()
 }
 
-function handleAvatarClick() {
-  fileInputRef.value?.click()
-}
-
-async function handleImageUpload(e: Event) {
-  const target = e.target as HTMLInputElement
-  const file = target.files?.[0]
-  if (file) {
-    try {
-      const base64 = await handleImageUploadUtil(file)
-      // 显示预览（base64）
-      avatar.value = base64
-    } catch (error) {
-      // 错误已在工具函数中处理
-      console.error('Image upload error:', error)
-    }
-  }
-}
-
 async function handleSubmit() {
-  if (!name.value.trim() || !description.value.trim()) {
-    ElMessage.warning('请填写完整信息')
-    return
-  }
-
-  if (name.value.length > 10) {
-    ElMessage.warning('智能体名称不能超过10个字符')
+  if (!description.value.trim()) {
+    ElMessage.warning('请填写简短描述')
     return
   }
 
@@ -473,11 +420,9 @@ async function handleSubmit() {
 
   try {
     submitting.value = true
+    // 配置页仅允许修改：简短描述、系统提示词；头像、名称、标签只读，不提交
     const updateData: UpdateAgentRequest = {
-      name: name.value.trim(),
       description: description.value.trim() || undefined,
-      avatar: avatar.value || undefined,
-      tag: tag.value || undefined,
       config: {
         systemPrompt: systemPrompt.value,
         ragConfig: null,
@@ -492,11 +437,6 @@ async function handleSubmit() {
     const result = await updateAgent(agentId.value, updateData)
     if (result.code === 0) {
       ElMessage.success('更新成功')
-      // 如果上传了新图片（base64），重新加载详情以获取新的 URL
-      if (avatar.value && avatar.value.startsWith('data:')) {
-        await loadAgentDetail()
-      }
-      // 可以选择返回上一页或刷新数据
       router.back()
     } else {
       ElMessage.error(result.message || '更新失败')

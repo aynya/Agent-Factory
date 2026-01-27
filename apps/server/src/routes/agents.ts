@@ -437,32 +437,9 @@ router.put(
         return;
       }
 
-      // 构建更新字段
+      // 构建更新字段（配置接口仅允许更新 description、config；name/avatar/tag 只读，忽略请求中的值）
       const updateFields: string[] = [];
       const updateValues: unknown[] = [];
-
-      // 更新 name
-      if (updateData.name !== undefined) {
-        const trimmedName = String(updateData.name).trim();
-        if (trimmedName.length === 0) {
-          res.status(400).json({
-            code: 4001,
-            message: 'name cannot be empty',
-            data: null,
-          });
-          return;
-        }
-        if (trimmedName.length > 100) {
-          res.status(400).json({
-            code: 4001,
-            message: 'name must not exceed 100 characters',
-            data: null,
-          });
-          return;
-        }
-        updateFields.push('name = ?');
-        updateValues.push(trimmedName);
-      }
 
       // 更新 description
       if (updateData.description !== undefined) {
@@ -470,68 +447,6 @@ router.put(
         updateValues.push(
           updateData.description != null ? String(updateData.description).trim() || null : null
         );
-      }
-
-      // 更新 avatar
-      if (updateData.avatar !== undefined) {
-        let avatarUrl: string | null = null;
-        const avatarValue = updateData.avatar != null ? String(updateData.avatar).trim() : null;
-
-        if (avatarValue) {
-          if (isBase64Image(avatarValue)) {
-            // 如果是 base64，保存为新文件
-            try {
-              avatarUrl = saveAvatarFromBase64(avatarValue);
-              // 删除旧图片（如果有）
-              if (agent.avatar) {
-                deleteAvatarFile(agent.avatar);
-              }
-            } catch (error) {
-              console.error('Save avatar error:', error);
-              res.status(400).json({
-                code: 4001,
-                message: error instanceof Error ? error.message : '图片处理失败',
-                data: null,
-              });
-              return;
-            }
-          } else {
-            // 如果不是 base64，直接使用（可能是 URL）
-            avatarUrl = avatarValue;
-            // 如果新 URL 与旧 URL 不同，删除旧图片
-            if (agent.avatar && agent.avatar !== avatarUrl) {
-              deleteAvatarFile(agent.avatar);
-            }
-          }
-        } else {
-          // 如果设置为 null，删除旧图片
-          if (agent.avatar) {
-            deleteAvatarFile(agent.avatar);
-          }
-        }
-
-        updateFields.push('avatar = ?');
-        updateValues.push(avatarUrl);
-      }
-
-      // 更新 tag
-      if (updateData.tag !== undefined) {
-        if (updateData.tag != null && String(updateData.tag).trim() !== '') {
-          const tagStr = String(updateData.tag).trim();
-          if (!VALID_TAGS.includes(tagStr as (typeof VALID_TAGS)[number])) {
-            res.status(400).json({
-              code: 4001,
-              message: `Invalid tag. Supported: ${VALID_TAGS.join(', ')}`,
-              data: null,
-            });
-            return;
-          }
-          updateFields.push('tag = ?');
-          updateValues.push(tagStr);
-        } else {
-          updateFields.push('tag = ?');
-          updateValues.push(null);
-        }
       }
 
       // 更新 config
