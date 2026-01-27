@@ -13,6 +13,7 @@ import type {
   AgentConfig,
   UpdateAgentRequest,
   UpdateAgentResponse,
+  DebugThread,
 } from '@monorepo/types';
 
 const router: Router = Router();
@@ -207,6 +208,14 @@ router.post(
         [versionId, agentId, descVal]
       );
 
+      // 创建 Agent 时自动创建调试 thread（is_debug=1），一个 agent 只对应一个调试 thread
+      const debugThreadId = generateUUID();
+      await query(
+        `INSERT INTO threads (id, user_id, agent_id, agent_version, title, is_debug)
+         VALUES (?, ?, ?, 1, '调试会话', 1)`,
+        [debugThreadId, userId, agentId]
+      );
+
       res.status(201).json({
         code: 0,
         message: 'create agent success',
@@ -287,6 +296,120 @@ router.delete(
       });
     } catch (error) {
       console.error('Delete agent error:', error);
+      res.status(500).json({
+        code: 5000,
+        message: 'Internal server error',
+        data: null,
+      });
+    }
+  }
+);
+
+/**
+ * 获取 Agent 的调试会话
+ * GET /api/agents/:agentId/debug-thread
+ * - 获取指定 Agent 调试用的 Thread
+ * - 若该 Agent 尚未存在 debug thread 则自动创建一个并返回该 Thread
+ * - 仅 Agent 创建者可访问
+ */
+router.get(
+  '/:agentId/debug-thread',
+  authenticateToken,
+  async (req: Request, res: Response<ApiResponse<DebugThread>>) => {
+    try {
+      const userId = (
+        req as Request & { user: { user_id: string; username: string } }
+      ).user.user_id;
+      const agentId = req.params.agentId?.trim();
+
+      if (!agentId) {
+        res.status(400).json({
+          code: 4001,
+          message: 'agentId is required',
+          data: null,
+        });
+        return;
+      }
+
+      const agentRows = await query<{ id: string; creator_id: string | null; latest_version: number }>(
+        'SELECT id, creator_id, latest_version FROM agents WHERE id = ?',
+        [agentId]
+      );
+      if (agentRows.length === 0) {
+        res.status(404).json({
+          code: 404,
+          message: 'agent not found',
+          data: null,
+        });
+        return;
+      }
+      const agent = agentRows[0]!;
+      if (!agent.creator_id || agent.creator_id !== userId) {
+        res.status(403).json({
+          code: 403,
+          message: 'forbidden: only the agent creator can access',
+          data: null,
+        });
+        return;
+      }
+
+      const existing = await query<{
+        id: string;
+        agent_id: string;
+        agent_version: number;
+        updated_at: string;
+      }>(
+        'SELECT id, agent_id, agent_version, updated_at FROM threads WHERE agent_id = ? AND is_debug = 1 LIMIT 1',
+        [agentId]
+      );
+
+      if (existing.length > 0) {
+        const t = existing[0]!;
+        const updatedAt = new Date(t.updated_at).toISOString();
+        res.json({
+          code: 0,
+          message: 'ok',
+          data: {
+            threadId: t.id,
+            agentId: t.agent_id,
+            agentVersion: t.agent_version,
+            isDebug: true as const,
+            createdAt: updatedAt,
+            updatedAt,
+          },
+        });
+        return;
+      }
+
+      const threadId = generateUUID();
+      const agentVersion = agent.latest_version;
+      await query(
+        'INSERT INTO threads (id, user_id, agent_id, agent_version, title, is_debug) VALUES (?, ?, ?, ?, ?, 1)',
+        [threadId, userId, agentId, agentVersion, '调试会话']
+      );
+
+      const inserted = await query<{ updated_at: string }>(
+        'SELECT updated_at FROM threads WHERE id = ?',
+        [threadId]
+      );
+      const updatedAt = inserted[0]?.updated_at
+        ? new Date(inserted[0].updated_at).toISOString()
+        : new Date().toISOString();
+
+      res.json({
+        code: 0,
+        message: 'ok',
+        data: {
+          threadId,
+          agentId,
+          agentVersion,
+          isDebug: true as const,
+          createdAt: updatedAt,
+          updatedAt,
+        },
+      });
+    } catch (error) {
+      console.error('Get debug thread error:', error);
       res.status(500).json({
         code: 5000,
         message: 'Internal server error',
@@ -485,6 +608,12 @@ router.put(
         newVersion,
         agentId,
       ]);
+
+      // 将该 agent 的调试 thread 绑定到最新版本，便于调试始终使用最新配置
+      await query(
+        'UPDATE threads SET agent_version = ?, updated_at = CURRENT_TIMESTAMP WHERE agent_id = ? AND is_debug = 1',
+        [newVersion, agentId]
+      );
 
       res.json({
         code: 0,

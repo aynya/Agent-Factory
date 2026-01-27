@@ -11,6 +11,7 @@ import type {
   ChatAbortResponse,
   Thread,
   Message,
+  DebugThread,
   AgentListItem,
   CreateAgentRequest,
   CreateAgentResponse,
@@ -438,6 +439,16 @@ export async function deleteAgent(agentId: string): Promise<ApiResponse<null>> {
  */
 export async function getAgentDetail(agentId: string): Promise<ApiResponse<AgentDetail>> {
   return request<AgentDetail>(`/api/agents/${agentId}`, {
+    method: 'GET',
+  })
+}
+
+/**
+ * 获取 Agent 的调试会话（有则复用，无则创建）
+ * GET /api/agents/:agentId/debug-thread
+ */
+export async function getAgentDebugThread(agentId: string): Promise<ApiResponse<DebugThread>> {
+  return request<DebugThread>(`/api/agents/${agentId}/debug-thread`, {
     method: 'GET',
   })
 }

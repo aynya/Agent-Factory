@@ -133,6 +133,16 @@ export interface ThreadListResponse {
   threads: Thread[];
 }
 
+/** 调试会话（GET /api/agents/:agentId/debug-thread 的返回结构） */
+export interface DebugThread {
+  threadId: string;
+  agentId: string;
+  agentVersion: number;
+  isDebug: true;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // Message types
 export interface Message {
   id: string;

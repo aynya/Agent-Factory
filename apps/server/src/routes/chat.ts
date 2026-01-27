@@ -484,14 +484,14 @@ router.get(
     ).user;
 
     try {
-      // 查询该用户的所有会话，按更新时间降序排列
+      // 查询该用户的所有会话（不含调试 thread），按更新时间降序排列
       const threads = await query<{
         id: string;
         title: string;
         agent_id: string;
         updated_at: string;
       }>(
-        'SELECT id, title, agent_id, updated_at FROM threads WHERE user_id = ? ORDER BY updated_at DESC',
+        'SELECT id, title, agent_id, updated_at FROM threads WHERE user_id = ? AND (is_debug = 0 OR is_debug IS NULL) ORDER BY updated_at DESC',
         [user.user_id]
       );
 

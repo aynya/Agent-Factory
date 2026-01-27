@@ -208,103 +208,154 @@
         </div>
       </div>
 
-      <!-- 右侧调试面板 (仿真实验室) -->
-      <div class="flex-1 flex flex-col bg-[#F8FAFC]">
+      <!-- 右侧调试面板 -->
+      <div class="flex-1 flex flex-col bg-[#F8FAFC] min-w-0">
         <div class="flex-1 flex flex-col overflow-hidden">
-          <div class="flex-1 p-8 space-y-6 overflow-y-auto">
-            <div class="flex justify-center mb-8">
-              <div
-                class="bg-white border border-slate-100 px-4 py-1.5 rounded-full shadow-sm text-[10px] font-bold text-slate-400 uppercase tracking-widest"
-              >
-                调试对话环境已开启
-              </div>
+          <div ref="debugMessagesContainer" class="flex-1 p-6 space-y-4 overflow-y-auto">
+            <!-- 加载调试会话中 -->
+            <div
+              v-if="debugThreadLoading"
+              class="flex flex-col items-center justify-center h-full text-slate-400"
+            >
+              <el-icon class="animate-spin" :size="28">
+                <Loading />
+              </el-icon>
+              <p class="text-sm mt-2">正在获取调试会话...</p>
             </div>
 
-            <!-- 模拟消息：AI -->
-            <div class="flex gap-3 max-w-lg">
-              <div class="w-8 h-8 rounded-xl overflow-hidden shrink-0 shadow-sm">
-                <img
-                  v-if="avatar"
-                  :src="getAvatarUrl(avatar)"
-                  class="w-full h-full object-cover"
-                  alt="Agent Avatar"
-                />
+            <!-- 无调试会话（获取失败或未就绪） -->
+            <div
+              v-else-if="!debugThreadId"
+              class="flex flex-col items-center justify-center h-full text-slate-400"
+            >
+              <el-icon :size="32">
+                <Tools />
+              </el-icon>
+              <p class="text-sm mt-2">无法加载调试会话</p>
+            </div>
+
+            <!-- 消息列表 -->
+            <template v-else>
+              <div class="flex justify-center mb-4">
                 <div
-                  v-else
-                  class="w-full h-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center"
+                  class="bg-white border border-slate-100 px-4 py-1.5 rounded-full shadow-sm text-[10px] font-bold text-slate-400 uppercase tracking-widest"
                 >
-                  <el-icon :size="16" class="text-white">
-                    <Avatar />
-                  </el-icon>
+                  调试对话环境（基于当前版本）
                 </div>
               </div>
-              <div
-                class="bg-white border border-slate-100 p-4 rounded-2xl rounded-tl-none shadow-sm"
-              >
-                <p class="text-sm text-slate-700 leading-relaxed font-medium">
-                  你好！我是你的新智能体 **{{
-                    name || '未命名'
-                  }}**。我已经加载了你配置的系统指令，现在可以开始测试我的逻辑了。
-                </p>
-              </div>
-            </div>
 
-            <!-- 模拟消息：用户 -->
-            <div class="flex gap-3 max-w-lg ml-auto flex-row-reverse">
               <div
-                class="w-8 h-8 rounded-xl bg-indigo-100 flex items-center justify-center text-indigo-600 shrink-0 shadow-sm font-bold text-xs uppercase"
+                v-for="msg in chatStore.messages"
+                :key="msg.id"
+                class="flex gap-3"
+                :class="msg.role === 'user' ? 'justify-end' : 'justify-start'"
               >
-                AY
-              </div>
-              <div class="bg-indigo-600 text-white p-4 rounded-2xl rounded-tr-none shadow-md">
-                <p class="text-sm leading-relaxed">请按照配置的性格特征向我打个招呼。</p>
-              </div>
-            </div>
+                <!-- 用户消息 -->
+                <div v-if="msg.role === 'user'" class="flex gap-3 max-w-[80%]">
+                  <div class="bg-indigo-600 text-white p-3 rounded-2xl rounded-tr-none shadow-sm">
+                    <p class="text-sm whitespace-pre-wrap break-words">{{ msg.content }}</p>
+                  </div>
+                  <div
+                    class="w-8 h-8 rounded-xl bg-indigo-100 flex items-center justify-center text-indigo-600 shrink-0 shadow-sm font-bold text-xs uppercase"
+                  >
+                    AY
+                  </div>
+                </div>
 
-            <!-- 占位符提示 -->
-            <div class="flex flex-col items-center justify-center pt-20 opacity-30 select-none">
-              <div
-                class="w-12 h-12 bg-slate-200 rounded-2xl flex items-center justify-center text-slate-400 mb-4"
-              >
-                <el-icon :size="20">
-                  <Tools />
-                </el-icon>
+                <!-- AI 回复 -->
+                <div v-else class="flex gap-3 max-w-[80%]">
+                  <div class="w-8 h-8 rounded-xl overflow-hidden shrink-0 shadow-sm">
+                    <img
+                      v-if="avatar"
+                      :src="getAvatarUrl(avatar)"
+                      class="w-full h-full object-cover"
+                      alt="Agent"
+                    />
+                    <div
+                      v-else
+                      class="w-full h-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center"
+                    >
+                      <el-icon :size="16" class="text-white">
+                        <Avatar />
+                      </el-icon>
+                    </div>
+                  </div>
+                  <div
+                    class="bg-white border border-slate-100 p-3 rounded-2xl rounded-tl-none shadow-sm min-w-0"
+                    :class="msg.isError ? 'border-red-200 bg-red-50' : ''"
+                  >
+                    <div
+                      v-if="msg.content"
+                      class="prose prose-sm max-w-none markdown-body text-slate-700 text-sm leading-relaxed"
+                      :class="msg.isError ? 'text-red-600' : ''"
+                      v-html="renderMarkdown(msg.content)"
+                    />
+                    <div
+                      v-else-if="msg.isStreaming"
+                      class="flex items-center gap-2 text-slate-400 text-sm"
+                    >
+                      <span class="inline-block w-2 h-2 bg-slate-400 rounded-full animate-pulse" />
+                      <span>正在生成...</span>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <p class="text-xs font-bold text-slate-500">在此实时验证你的修改...</p>
-            </div>
+            </template>
           </div>
         </div>
 
         <!-- 调试输入框 -->
-        <div class="p-6 bg-white border-t border-slate-100">
+        <div
+          v-if="debugThreadId && !debugThreadLoading"
+          class="p-6 bg-white border-t border-slate-100 shrink-0"
+        >
           <div class="max-w-3xl mx-auto relative group">
             <div
               class="absolute inset-0 bg-indigo-50 rounded-2xl scale-[1.02] opacity-0 group-focus-within:opacity-100 transition-all"
-            ></div>
-            <div class="relative">
+            />
+            <div class="relative flex gap-2 items-end">
               <input
-                disabled
+                v-model="debugInput"
                 type="text"
                 placeholder="输入消息开始调试..."
-                class="w-full bg-slate-100 border-2 border-transparent rounded-2xl py-4 pl-5 pr-14 text-sm text-slate-400 cursor-not-allowed transition-all"
+                :disabled="chatStore.isGenerating"
+                class="flex-1 bg-slate-50 border-2 border-slate-200 rounded-2xl py-3 pl-5 pr-4 text-sm text-slate-800 placeholder-slate-400 focus:bg-white focus:ring-4 focus:ring-indigo-50/50 focus:border-indigo-200 transition-all outline-none disabled:opacity-60 disabled:cursor-not-allowed"
+                @keydown.enter.prevent="handleSendDebug()"
               />
-              <div
-                class="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 bg-slate-200 rounded-xl flex items-center justify-center text-slate-400"
+              <button
+                v-if="chatStore.isGenerating"
+                type="button"
+                class="w-10 h-10 shrink-0 rounded-xl bg-red-100 text-red-600 flex items-center justify-center hover:bg-red-200 transition-colors"
+                @click="chatStore.interruptGeneration()"
               >
-                <el-icon :size="12">
+                <el-icon :size="18">
+                  <Close />
+                </el-icon>
+              </button>
+              <button
+                v-else
+                type="button"
+                class="w-10 h-10 shrink-0 rounded-xl bg-indigo-600 text-white flex items-center justify-center hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                :disabled="!debugInput.trim()"
+                @click="handleSendDebug()"
+              >
+                <el-icon :size="18">
                   <Promotion />
                 </el-icon>
-              </div>
+              </button>
             </div>
           </div>
           <div class="max-w-3xl mx-auto flex gap-2 mt-4 overflow-x-auto pb-2">
-            <span
+            <button
               v-for="(suggestion, i) in suggestions"
               :key="i"
-              class="whitespace-nowrap bg-slate-50 border border-slate-100 px-3 py-1 rounded-lg text-[10px] font-bold text-slate-400 hover:text-indigo-600 cursor-default"
+              type="button"
+              class="whitespace-nowrap bg-slate-50 border border-slate-100 px-3 py-1.5 rounded-lg text-[10px] font-bold text-slate-500 hover:text-indigo-600 hover:border-indigo-200 transition-colors"
+              :disabled="chatStore.isGenerating"
+              @click="useSuggestion(suggestion)"
             >
               {{ suggestion }}
-            </span>
+            </button>
           </div>
         </div>
       </div>
@@ -322,7 +373,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, inject } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, inject } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
@@ -336,15 +387,20 @@ import {
   PriceTag,
   Promotion,
   Tools,
+  Close,
 } from '@element-plus/icons-vue'
 import type { UpdateAgentRequest } from '@monorepo/types'
-import { getAgentDetail, updateAgent } from '@/utils/api'
+import { getAgentDetail, updateAgent, getAgentDebugThread } from '@/utils/api'
+import { useChatStore } from '@/stores/chat'
 import { getAvatarUrl } from '@/utils/avatar'
 import { formatVersion } from '@/utils/version'
+import { createMarkdownRenderer, renderMarkdown as renderMarkdownUtil } from '@monorepo/utils'
+import 'highlight.js/styles/github-dark.css'
 
 const setHeaderTitle = inject<(t: string | null) => void>('setHeaderTitle')
 const route = useRoute()
 const router = useRouter()
+const chatStore = useChatStore()
 
 const submitting = ref(false)
 const loading = ref(true)
@@ -365,6 +421,16 @@ const agentCategories = [
 ]
 
 const suggestions = ['简单介绍下自己', '测试边界条件', '角色扮演测试']
+
+const debugMessagesContainer = ref<HTMLElement | null>(null)
+const debugThreadId = ref<string | null>(null)
+const debugThreadLoading = ref(false)
+const debugInput = ref('')
+
+const md = createMarkdownRenderer()
+function renderMarkdown(text: string): string {
+  return renderMarkdownUtil(text, md)
+}
 
 const tagLabel = computed(() => {
   if (!tag.value) return '未设置'
@@ -387,13 +453,15 @@ onMounted(async () => {
     router.back()
     return
   }
-  await loadAgentDetail()
+  const detailOk = await loadAgentDetail()
+  if (detailOk && agentId.value) {
+    await loadDebugThread()
+  }
 })
 
-async function loadAgentDetail() {
-  if (!agentId.value) {
-    return
-  }
+/** 返回是否加载成功，失败时会 router.back() */
+async function loadAgentDetail(): Promise<boolean> {
+  if (!agentId.value) return false
   try {
     loading.value = true
     const result = await getAgentDetail(agentId.value)
@@ -405,18 +473,46 @@ async function loadAgentDetail() {
       tag.value = agent.tag
       avatar.value = agent.avatar
       version.value = agent.version
-    } else {
-      ElMessage.error(result.message || '获取智能体详情失败')
-      router.back()
+      return true
     }
+    ElMessage.error(result.message || '获取智能体详情失败')
+    router.back()
+    return false
   } catch (error) {
     console.error('Load agent detail error:', error)
     ElMessage.error('加载失败')
     router.back()
+    return false
   } finally {
     loading.value = false
   }
 }
+
+async function loadDebugThread() {
+  if (!agentId.value) return
+  debugThreadLoading.value = true
+  try {
+    const res = await getAgentDebugThread(agentId.value)
+    if (res.code === 0 && res.data) {
+      const threadId = res.data.threadId
+      chatStore.setOverrideAgentId(agentId.value)
+      await chatStore.switchThread(threadId)
+      // 在 switchThread 完成后再展示调试区，避免短暂显示其他会话的消息
+      debugThreadId.value = threadId
+    } else {
+      ElMessage.error(res.message || '获取调试会话失败')
+    }
+  } catch (e) {
+    console.error('Load debug thread error:', e)
+    ElMessage.error('加载调试会话失败')
+  } finally {
+    debugThreadLoading.value = false
+  }
+}
+
+onUnmounted(() => {
+  chatStore.setOverrideAgentId(null)
+})
 
 function handleBack() {
   router.back()
@@ -463,6 +559,18 @@ async function handleSubmit() {
     submitting.value = false
   }
 }
+
+function handleSendDebug() {
+  const content = debugInput.value.trim()
+  if (!content || chatStore.isGenerating || !debugThreadId.value) return
+  chatStore.sendMessage(content)
+  debugInput.value = ''
+}
+
+function useSuggestion(s: string) {
+  debugInput.value = s
+  nextTick(() => handleSendDebug())
+}
 </script>
 
 <style scoped>
@@ -482,5 +590,19 @@ async function handleSubmit() {
 
 .overflow-y-auto::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
+}
+
+/* 调试消息 markdown 基础样式 */
+:deep(.markdown-body pre),
+:deep(.markdown-body code) {
+  font-size: 12px;
+}
+:deep(.markdown-body p) {
+  margin: 0.25em 0;
+}
+:deep(.markdown-body ul),
+:deep(.markdown-body ol) {
+  margin: 0.25em 0;
+  padding-left: 1.25em;
 }
 </style>

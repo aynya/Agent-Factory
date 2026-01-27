@@ -22,8 +22,10 @@ export interface Message {
 export const useChatStore = defineStore('chat', () => {
   // 当前会话 ID
   const currentThreadId = ref<string | null>(null)
-  // 默认 Agent ID
+  // 默认 Agent ID（主聊天页使用）
   const defaultAgentId = 'system-agent-id'
+  // 调试/配置页覆盖的 Agent ID，非空时发送与中断使用此 ID
+  const overrideAgentId = ref<string | null>(null)
   // 会话列表
   const threads = ref<Thread[]>([])
   // 是否正在加载会话列表
@@ -121,6 +123,13 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   /**
+   * 设置覆盖的 Agent ID（如配置页调试时传入当前 agentId，离开时传 null）
+   */
+  function setOverrideAgentId(agentId: string | null) {
+    overrideAgentId.value = agentId
+  }
+
+  /**
    * 创建新会话
    */
   async function createNewThread() {
@@ -202,7 +211,7 @@ export const useChatStore = defineStore('chat', () => {
     }
 
     const requestData: ChatStreamRequest = {
-      agent_id: defaultAgentId,
+      agent_id: overrideAgentId.value ?? defaultAgentId,
       thread_id: currentThreadId.value,
       content: content.trim(),
     }
@@ -279,7 +288,7 @@ export const useChatStore = defineStore('chat', () => {
 
       // 调用后端中断接口
       const requestData: ChatAbortRequest = {
-        agent_id: defaultAgentId,
+        agent_id: overrideAgentId.value ?? defaultAgentId,
         thread_id: currentThreadId.value,
       }
       await abortChat(requestData)
@@ -313,6 +322,7 @@ export const useChatStore = defineStore('chat', () => {
     loadThreads,
     loadMessages,
     switchThread,
+    setOverrideAgentId,
     createNewThread,
     removeThread,
     sendMessage,
