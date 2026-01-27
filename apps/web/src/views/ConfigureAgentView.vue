@@ -14,20 +14,29 @@
           </el-icon>
         </button>
         <div class="flex flex-col">
-          <span
-            class="text-[11px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-1"
-          >
-            正在配置智能体
-          </span>
+          <div class="flex items-center gap-2 mb-0.5">
+            <span
+              class="text-[11px] font-bold text-slate-400 uppercase tracking-widest leading-none"
+            >
+              正在配置
+            </span>
+            <span
+              class="text-[10px] bg-indigo-50 text-indigo-600 font-bold px-1.5 rounded border border-indigo-100"
+            >
+              {{ formatVersion(version) }}
+            </span>
+          </div>
           <span class="text-sm font-black text-slate-800 leading-none">{{ name || '未命名' }}</span>
         </div>
       </div>
       <div class="flex items-center gap-3">
-        <div
-          class="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-600 rounded-lg mr-2"
-        >
-          <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
-          <span class="text-[10px] font-bold">已就绪</span>
+        <div class="hidden md:flex items-center gap-2 mr-2">
+          <span class="text-[12px] text-slate-400 font-bold uppercase tracking-tighter">
+            发布后将更新为
+          </span>
+          <span class="text-[12px] text-emerald-600 font-black">{{
+            formatVersion(nextVersion)
+          }}</span>
         </div>
         <button
           @click="handleSubmit"
@@ -331,6 +340,7 @@ import {
 import type { UpdateAgentRequest } from '@monorepo/types'
 import { getAgentDetail, updateAgent } from '@/utils/api'
 import { getAvatarUrl } from '@/utils/avatar'
+import { formatVersion } from '@/utils/version'
 
 const setHeaderTitle = inject<(t: string | null) => void>('setHeaderTitle')
 const route = useRoute()
@@ -344,6 +354,7 @@ const description = ref('')
 const systemPrompt = ref('')
 const tag = ref<string | null>(null)
 const avatar = ref<string | null>(null)
+const version = ref(1)
 
 const agentCategories = [
   { id: 'assistant', label: '助手' },
@@ -360,6 +371,9 @@ const tagLabel = computed(() => {
   const found = agentCategories.find(c => c.id === tag.value)
   return found ? found.label : tag.value
 })
+
+/** 发布后将更新到的版本号（当前版本 + 1） */
+const nextVersion = computed(() => version.value + 1)
 
 const agentId = computed(() => {
   const id = route.params.agentId
@@ -390,6 +404,7 @@ async function loadAgentDetail() {
       systemPrompt.value = agent.config.systemPrompt || ''
       tag.value = agent.tag
       avatar.value = agent.avatar
+      version.value = agent.version
     } else {
       ElMessage.error(result.message || '获取智能体详情失败')
       router.back()

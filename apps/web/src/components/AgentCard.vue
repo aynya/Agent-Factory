@@ -22,9 +22,14 @@
       </div>
 
       <div class="flex-1 min-w-0">
-        <div class="flex items-center gap-2 mb-1">
+        <div class="flex items-center justify-between gap-2 mb-1">
           <span v-if="agent.tag" class="tag-badge" :class="tagBadgeTheme(agent.tag)">
             {{ tagLabel(agent.tag) }}
+          </span>
+          <span
+            class="text-[9px] font-black text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200/50 ml-auto"
+          >
+            {{ formatVersion(agent.latestVersion) }}
           </span>
         </div>
         <h3 class="text-[17px] font-bold text-slate-900 truncate leading-tight agent-card__name">
@@ -72,6 +77,7 @@
 import { Avatar, DeleteFilled, Tools } from '@element-plus/icons-vue'
 import type { AgentListItem } from '@monorepo/types'
 import { getAvatarUrl } from '@/utils/avatar'
+import { formatVersion } from '@/utils/version'
 
 const props = defineProps<{
   agent: AgentListItem

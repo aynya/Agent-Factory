@@ -51,7 +51,7 @@
                   class="flex items-center gap-1 text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg"
                 >
                   <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                  在线
+                  {{ formatVersion(agent.latestVersion) }}
                 </span>
               </div>
               <h2 class="text-3xl font-extrabold text-slate-900 tracking-tight mb-2">
@@ -138,6 +138,7 @@ import { watch, onUnmounted } from 'vue'
 import { Avatar, Close, Calendar, Promotion, Share } from '@element-plus/icons-vue'
 import type { AgentListItem } from '@monorepo/types'
 import { getAvatarUrl } from '@/utils/avatar'
+import { formatVersion } from '@/utils/version'
 
 const props = defineProps<{
   agent: AgentListItem | null
