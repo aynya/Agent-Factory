@@ -64,20 +64,48 @@ router.post(
     activeStreams.set(streamKey, abortController);
 
     try {
-      // 1. 检查或创建 thread
-      const existingThreads = await query<{ id: string }>(
-        'SELECT id FROM threads WHERE id = ? AND user_id = ?',
+      // 1. 检查或创建 thread（新 thread 使用该 agent 的 latest_version 绑定）
+      const existingThreads = await query<{ id: string; agent_id: string; agent_version: number }>(
+        'SELECT id, agent_id, agent_version FROM threads WHERE id = ? AND user_id = ?',
         [thread_id, user.user_id]
       );
 
+      let threadAgentId = agent_id;
+      let threadAgentVersion: number;
+
       if (existingThreads.length === 0) {
-        // 创建新 thread
+        const verRows = await query<{ latest_version: number }>(
+          'SELECT latest_version FROM agents WHERE id = ?',
+          [agent_id]
+        );
+        if (verRows.length === 0) {
+          res.write(`event: error\n`);
+          res.write(
+            `data: ${JSON.stringify({ code: 404, message: 'Agent not found' })}\n\n`
+          );
+          res.end();
+          return;
+        }
+        threadAgentVersion = verRows[0]!.latest_version;
         await query(
-          'INSERT INTO threads (id, user_id, agent_id, title) VALUES (?, ?, ?, ?)',
-          [thread_id, user.user_id, agent_id, content.substring(0, 255)]
+          'INSERT INTO threads (id, user_id, agent_id, agent_version, title) VALUES (?, ?, ?, ?, ?)',
+          [thread_id, user.user_id, agent_id, threadAgentVersion, content.substring(0, 255)]
         );
       } else {
-        // 更新 thread 的更新时间
+        const t = existingThreads[0]!;
+        if (t.agent_id !== agent_id) {
+          res.write(`event: error\n`);
+          res.write(
+            `data: ${JSON.stringify({
+              code: 400,
+              message: 'This thread is bound to another agent. Use a different thread or create a new one.',
+            })}\n\n`
+          );
+          res.end();
+          return;
+        }
+        threadAgentId = t.agent_id;
+        threadAgentVersion = t.agent_version;
         await query(
           'UPDATE threads SET updated_at = CURRENT_TIMESTAMP WHERE id = ?',
           [thread_id]
@@ -100,28 +128,25 @@ router.post(
         [thread_id, userMessageId]
       );
 
-      // 4. 获取 Agent 配置（config 为 JSON，内含 system_prompt 等）
-      const agents = await query<{ config: { system_prompt?: string } | null }>(
-        'SELECT config FROM agents WHERE id = ?',
-        [agent_id]
+      // 4. 从 thread 绑定的 agent_version 取 system_prompt
+      const versionRows = await query<{ system_prompt: string | null }>(
+        'SELECT system_prompt FROM agent_versions WHERE agent_id = ? AND version = ?',
+        [threadAgentId, threadAgentVersion]
       );
 
-      const agent = agents[0];
-      if (!agent) {
+      if (versionRows.length === 0) {
         res.write(`event: error\n`);
         res.write(
-          `data: ${JSON.stringify({ code: 404, message: 'Agent not found' })}\n\n`
+          `data: ${JSON.stringify({ code: 404, message: 'Agent version not found' })}\n\n`
         );
         res.end();
         return;
       }
 
-      const raw =
-        agent.config && typeof agent.config === 'object'
-          ? (agent.config as Record<string, unknown>).system_prompt
-          : null;
+      const vRow = versionRows[0]!;
       const systemPrompt =
-        (typeof raw === 'string' ? raw : null) || '你是一个有用的AI助手';
+        (typeof vRow.system_prompt === 'string' ? vRow.system_prompt : null) ||
+        '你是一个有用的AI助手';
 
       // 5. 构建 OpenAI 消息格式
       const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
@@ -276,20 +301,48 @@ router.post(
     testActiveStreams.set(streamKey, abortController);
 
     try {
-      // 1. 检查或创建 thread
-      const existingThreads = await query<{ id: string }>(
-        'SELECT id FROM threads WHERE id = ? AND user_id = ?',
+      // 1. 检查或创建 thread（新 thread 绑定该 agent 的 latest_version）
+      const existingThreads = await query<{ id: string; agent_id: string; agent_version: number }>(
+        'SELECT id, agent_id, agent_version FROM threads WHERE id = ? AND user_id = ?',
         [thread_id, user.user_id]
       );
 
+      let threadAgentId = agent_id;
+      let threadAgentVersion: number;
+
       if (existingThreads.length === 0) {
-        // 创建新 thread
+        const verRows = await query<{ latest_version: number }>(
+          'SELECT latest_version FROM agents WHERE id = ?',
+          [agent_id]
+        );
+        if (verRows.length === 0) {
+          res.write(`event: error\n`);
+          res.write(
+            `data: ${JSON.stringify({ code: 404, message: 'Agent not found' })}\n\n`
+          );
+          res.end();
+          return;
+        }
+        threadAgentVersion = verRows[0]!.latest_version;
         await query(
-          'INSERT INTO threads (id, user_id, agent_id, title) VALUES (?, ?, ?, ?)',
-          [thread_id, user.user_id, agent_id, content.substring(0, 255)]
+          'INSERT INTO threads (id, user_id, agent_id, agent_version, title) VALUES (?, ?, ?, ?, ?)',
+          [thread_id, user.user_id, agent_id, threadAgentVersion, content.substring(0, 255)]
         );
       } else {
-        // 更新 thread 的更新时间
+        const t = existingThreads[0]!;
+        if (t.agent_id !== agent_id) {
+          res.write(`event: error\n`);
+          res.write(
+            `data: ${JSON.stringify({
+              code: 400,
+              message: 'This thread is bound to another agent. Use a different thread or create a new one.',
+            })}\n\n`
+          );
+          res.end();
+          return;
+        }
+        threadAgentId = t.agent_id;
+        threadAgentVersion = t.agent_version;
         await query(
           'UPDATE threads SET updated_at = CURRENT_TIMESTAMP WHERE id = ?',
           [thread_id]
@@ -303,17 +356,16 @@ router.post(
         [userMessageId, thread_id, 'user', content, 0]
       );
 
-      // 3. 获取 Agent 配置（可选，用于测试；config 为 JSON，内含 system_prompt 等）
-      const agents = await query<{ config: { system_prompt?: string } | null }>(
-        'SELECT config FROM agents WHERE id = ?',
-        [agent_id]
+      // 3. 从 thread 绑定的 agent_version 取配置（测试用）
+      const versionRows = await query<{ system_prompt: string | null }>(
+        'SELECT system_prompt FROM agent_versions WHERE agent_id = ? AND version = ?',
+        [threadAgentId, threadAgentVersion]
       );
 
-      const agent = agents[0];
-      if (!agent) {
+      if (versionRows.length === 0) {
         res.write(`event: error\n`);
         res.write(
-          `data: ${JSON.stringify({ code: 404, message: 'Agent not found' })}\n\n`
+          `data: ${JSON.stringify({ code: 404, message: 'Agent version not found' })}\n\n`
         );
         res.end();
         return;

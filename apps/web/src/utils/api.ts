@@ -16,6 +16,7 @@ import type {
   CreateAgentResponse,
   AgentDetail,
   UpdateAgentRequest,
+  UpdateAgentResponse,
 } from '@monorepo/types'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'
@@ -442,14 +443,14 @@ export async function getAgentDetail(agentId: string): Promise<ApiResponse<Agent
 }
 
 /**
- * 更新智能体配置
+ * 更新智能体配置并发布新版本
  * PUT /api/agents/:agentId
  */
 export async function updateAgent(
   agentId: string,
   data: UpdateAgentRequest
-): Promise<ApiResponse<null>> {
-  return request<null>(`/api/agents/${agentId}`, {
+): Promise<ApiResponse<UpdateAgentResponse>> {
+  return request<UpdateAgentResponse>(`/api/agents/${agentId}`, {
     method: 'PUT',
     body: JSON.stringify(data),
   })

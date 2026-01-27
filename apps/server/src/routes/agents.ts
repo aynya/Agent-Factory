@@ -6,13 +6,13 @@ import { authenticateToken } from '../middleware/auth.js';
 import { saveAvatarFromBase64, deleteAvatarFile, isBase64Image } from '../utils/avatar.js';
 import type {
   ApiResponse,
-  AgentInDB,
   AgentListItem,
   CreateAgentRequest,
   CreateAgentResponse,
   AgentDetail,
   AgentConfig,
   UpdateAgentRequest,
+  UpdateAgentResponse,
 } from '@monorepo/types';
 
 const router: Router = Router();
@@ -25,14 +25,28 @@ const VALID_TAGS = [
   'explore',
 ] as const;
 
-function toAgentListItem(row: AgentInDB): AgentListItem {
+/** 列表项行：agents + agent_versions（最新版本）JOIN 后的字段 */
+interface AgentListRow {
+  id: string;
+  name: string;
+  avatar: string | null;
+  tag: string | null;
+  status: 'private' | 'public';
+  latest_version: number;
+  created_at: string;
+  updated_at: string;
+  description: string | null;
+}
+
+function toAgentListItem(row: AgentListRow): AgentListItem {
   return {
     agentId: row.id,
     name: row.name,
-    description: row.description,
+    description: row.description ?? null,
     avatar: row.avatar,
     tag: row.tag,
     status: row.status,
+    latestVersion: row.latest_version,
     createdAt: new Date(row.created_at).toISOString(),
     updatedAt: new Date(row.updated_at).toISOString(),
   };
@@ -65,18 +79,20 @@ router.get(
         }
       }
 
-      let sql =
-        'SELECT id, name, description, avatar, tag, status, created_at, updated_at FROM agents WHERE creator_id = ?';
+      let sql = `SELECT a.id, a.name, a.avatar, a.tag, a.status, a.latest_version, a.created_at, a.updated_at, av.description
+        FROM agents a
+        LEFT JOIN agent_versions av ON av.agent_id = a.id AND av.version = a.latest_version
+        WHERE a.creator_id = ?`;
       const params: (string | undefined)[] = [userId];
 
       if (tag) {
-        sql += ' AND FIND_IN_SET(?, tag)';
+        sql += ' AND a.tag = ?';
         params.push(tag);
       }
 
-      sql += ' ORDER BY updated_at DESC';
+      sql += ' ORDER BY a.updated_at DESC';
 
-      const rows = await query<AgentInDB>(sql, params);
+      const rows = await query<AgentListRow>(sql, params);
 
       res.json({
         code: 0,
@@ -151,7 +167,7 @@ router.post(
       }
 
       const agentId = generateUUID();
-      const initialConfig = JSON.stringify({ system_prompt: '' });
+      const versionId = generateUUID();
 
       // 处理头像：如果是 base64，保存为文件并获取相对路径
       let avatarUrl: string | null = null;
@@ -170,29 +186,31 @@ router.post(
             return;
           }
         } else {
-          // 如果不是 base64，直接使用（可能是 URL 或 null）
           avatarUrl = avatarStr || null;
         }
       }
 
+      const tagVal =
+        tag != null && String(tag).trim() !== '' ? String(tag).trim() : null;
+      const descVal =
+        description != null ? String(description).trim() || null : null;
+
       await query(
-        `INSERT INTO agents (id, name, description, avatar, tag, status, config, creator_id)
-         VALUES (?, ?, ?, ?, ?, 'private', ?, ?)`,
-        [
-          agentId,
-          trimmedName,
-          description != null ? String(description).trim() || null : null,
-          avatarUrl,
-          tag != null && String(tag).trim() !== '' ? String(tag).trim() : null,
-          initialConfig,
-          userId,
-        ]
+        `INSERT INTO agents (id, name, avatar, tag, status, creator_id, latest_version)
+         VALUES (?, ?, ?, ?, 'private', ?, 1)`,
+        [agentId, trimmedName, avatarUrl, tagVal, userId]
+      );
+
+      await query(
+        `INSERT INTO agent_versions (id, agent_id, version, description, system_prompt, rag_config, mcp_config)
+         VALUES (?, ?, 1, ?, '', NULL, NULL)`,
+        [versionId, agentId, descVal]
       );
 
       res.status(201).json({
         code: 0,
         message: 'create agent success',
-        data: { agentId },
+        data: { agentId, latestVersion: 1 },
       });
     } catch (error) {
       console.error('Create agent error:', error);
@@ -240,8 +258,8 @@ router.delete(
         });
         return;
       }
-      const agent = rows[0];
-      const creatorId = agent?.creator_id;
+      const agent = rows[0]!;
+      const creatorId = agent.creator_id;
       if (!creatorId || creatorId !== userId) {
         res.status(403).json({
           code: 403,
@@ -279,7 +297,7 @@ router.delete(
 );
 
 /**
- * 获取 Agent 配置
+ * 获取 Agent 当前最新版本的配置
  * GET /api/agents/:agentId
  * 仅 Agent 创建者可以访问，非创建者返回 403
  */
@@ -302,9 +320,26 @@ router.get(
         return;
       }
 
-      // 查询 agent 信息，包括 config 和 creator_id
-      const rows = await query<AgentInDB & { config: unknown; creator_id: string | null }>(
-        'SELECT id, name, description, avatar, tag, status, config, creator_id, created_at, updated_at FROM agents WHERE id = ?',
+      const rows = await query<{
+        id: string;
+        name: string;
+        avatar: string | null;
+        tag: string | null;
+        status: 'private' | 'public';
+        creator_id: string | null;
+        created_at: string;
+        updated_at: string;
+        version: number;
+        description: string | null;
+        system_prompt: string | null;
+        rag_config: unknown;
+        mcp_config: unknown;
+      }>(
+        `SELECT a.id, a.name, a.avatar, a.tag, a.status, a.creator_id, a.created_at, a.updated_at,
+         av.version, av.description, av.system_prompt, av.rag_config, av.mcp_config
+         FROM agents a
+         JOIN agent_versions av ON av.agent_id = a.id AND av.version = a.latest_version
+         WHERE a.id = ?`,
         [agentId]
       );
 
@@ -317,12 +352,9 @@ router.get(
         return;
       }
 
-      // TypeScript 无法从 rows.length > 0 推断出 rows[0] 一定存在
-      // 使用类型断言，因为我们已经检查了数组不为空
-      const agent = rows[0] as AgentInDB & { config: unknown; creator_id: string | null };
+      const row = rows[0]!;
 
-      // 检查权限：只有创建者可以访问
-      if (!agent.creator_id || agent.creator_id !== userId) {
+      if (!row.creator_id || row.creator_id !== userId) {
         res.status(403).json({
           code: 403,
           message: 'forbidden: only the agent creator can access',
@@ -331,40 +363,23 @@ router.get(
         return;
       }
 
-      // 解析 config JSON
-      let config: AgentConfig;
-      try {
-        const rawConfig =
-          agent.config && typeof agent.config === 'object'
-            ? (agent.config as Record<string, unknown>)
-            : {};
-
-        config = {
-          systemPrompt:
-            typeof rawConfig.system_prompt === 'string' ? rawConfig.system_prompt : '',
-          ragConfig: rawConfig.rag_config ?? null,
-          mcpConfig: rawConfig.mcp_config ?? null,
-        };
-      } catch (error) {
-        console.error('Failed to parse agent config:', error);
-        // 如果解析失败，使用默认配置
-        config = {
-          systemPrompt: '',
-          ragConfig: null,
-          mcpConfig: null,
-        };
-      }
+      const config: AgentConfig = {
+        systemPrompt: typeof row.system_prompt === 'string' ? row.system_prompt : '',
+        ragConfig: row.rag_config ?? null,
+        mcpConfig: row.mcp_config ?? null,
+      };
 
       const agentDetail: AgentDetail = {
-        agentId: agent.id,
-        name: agent.name,
-        description: agent.description,
-        avatar: agent.avatar,
-        tag: agent.tag,
-        status: agent.status,
+        agentId: row.id,
+        name: row.name,
+        description: row.description ?? null,
+        avatar: row.avatar,
+        tag: row.tag,
+        status: row.status,
+        version: row.version,
         config,
-        createdAt: new Date(agent.created_at).toISOString(),
-        updatedAt: new Date(agent.updated_at).toISOString(),
+        createdAt: new Date(row.created_at).toISOString(),
+        updatedAt: new Date(row.updated_at).toISOString(),
       };
 
       res.json({
@@ -384,15 +399,14 @@ router.get(
 );
 
 /**
- * 更新 Agent 配置
+ * 修改 Agent 能力配置并发布新版本
  * PUT /api/agents/:agentId
- * 仅 Agent 创建者可以更新，非创建者返回 403
- * Config 更新后立即生效，Phase 2 中仅 systemPrompt 生效，其余字段预留
+ * 仅创建者可调用。新增一条 agent_versions（version+1），更新 agents.latest_version，不影响已有 Thread。
  */
 router.put(
   '/:agentId',
   authenticateToken,
-  async (req: Request, res: Response<ApiResponse<null>>) => {
+  async (req: Request, res: Response<ApiResponse<UpdateAgentResponse>>) => {
     try {
       const userId = (
         req as Request & { user: { user_id: string; username: string } }
@@ -410,9 +424,8 @@ router.put(
 
       const updateData: UpdateAgentRequest = req.body;
 
-      // 查询 agent 信息，检查是否存在和权限
-      const rows = await query<AgentInDB & { config: unknown; creator_id: string | null }>(
-        'SELECT id, name, description, avatar, tag, status, config, creator_id FROM agents WHERE id = ?',
+      const rows = await query<{ id: string; latest_version: number; creator_id: string | null }>(
+        'SELECT id, latest_version, creator_id FROM agents WHERE id = ?',
         [agentId]
       );
 
@@ -425,9 +438,7 @@ router.put(
         return;
       }
 
-      const agent = rows[0] as AgentInDB & { config: unknown; creator_id: string | null };
-
-      // 检查权限：只有创建者可以更新
+      const agent = rows[0]!;
       if (!agent.creator_id || agent.creator_id !== userId) {
         res.status(403).json({
           code: 403,
@@ -437,99 +448,48 @@ router.put(
         return;
       }
 
-      // 构建更新字段（配置接口仅允许更新 description、config；name/avatar/tag 只读，忽略请求中的值）
-      const updateFields: string[] = [];
-      const updateValues: unknown[] = [];
+      const newVersion = agent.latest_version + 1;
+      const versionId = generateUUID();
 
-      // 更新 description
-      if (updateData.description !== undefined) {
-        updateFields.push('description = ?');
-        updateValues.push(
-          updateData.description != null ? String(updateData.description).trim() || null : null
-        );
+      const description =
+        updateData.description != null
+          ? String(updateData.description).trim() || null
+          : null;
+
+      let systemPrompt = '';
+      let ragConfig: unknown = null;
+      let mcpConfig: unknown = null;
+      if (updateData.config != null && typeof updateData.config === 'object') {
+        const c = updateData.config;
+        systemPrompt =
+          c.systemPrompt != null ? String(c.systemPrompt) : '';
+        ragConfig = c.ragConfig ?? null;
+        mcpConfig = c.mcpConfig ?? null;
       }
 
-      // 更新 config
-      if (updateData.config !== undefined) {
-        try {
-          // 验证 config 是否为对象
-          if (typeof updateData.config !== 'object' || updateData.config === null) {
-            res.status(400).json({
-              code: 4001,
-              message: 'config must be an object',
-              data: null,
-            });
-            return;
-          }
+      await query(
+        `INSERT INTO agent_versions (id, agent_id, version, description, system_prompt, rag_config, mcp_config)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [
+          versionId,
+          agentId,
+          newVersion,
+          description,
+          systemPrompt,
+          ragConfig == null ? null : JSON.stringify(ragConfig),
+          mcpConfig == null ? null : JSON.stringify(mcpConfig),
+        ]
+      );
 
-          // 获取现有 config
-          const existingConfig =
-            agent.config && typeof agent.config === 'object' && agent.config !== null
-              ? (agent.config as Record<string, unknown>)
-              : {};
-
-          // 合并配置（Phase 2 中仅 systemPrompt 生效，其余字段预留）
-          const newConfig: Record<string, unknown> = {
-            ...existingConfig,
-          };
-
-          // 处理 systemPrompt：确保是字符串类型，null/undefined 转换为空字符串
-          if (updateData.config.systemPrompt !== undefined) {
-            // 如果为 null，转换为空字符串；否则确保是字符串类型
-            if (updateData.config.systemPrompt === null) {
-              newConfig.system_prompt = '';
-            } else if (typeof updateData.config.systemPrompt === 'string') {
-              newConfig.system_prompt = updateData.config.systemPrompt;
-            } else {
-              // 如果不是字符串也不是 null，转换为字符串（防御性处理）
-              newConfig.system_prompt = String(updateData.config.systemPrompt);
-            }
-          } else {
-            // 如果未提供 systemPrompt，保留现有值或使用默认空字符串
-            newConfig.system_prompt = existingConfig.system_prompt ?? '';
-          }
-
-          // 预留字段（Phase 2 中不生效，但保留在数据库中）
-          if (updateData.config.ragConfig !== undefined) {
-            newConfig.rag_config = updateData.config.ragConfig;
-          }
-          if (updateData.config.mcpConfig !== undefined) {
-            newConfig.mcp_config = updateData.config.mcpConfig;
-          }
-
-          updateFields.push('config = ?');
-          updateValues.push(JSON.stringify(newConfig));
-        } catch (error) {
-          console.error('Failed to parse config:', error);
-          res.status(400).json({
-            code: 4001,
-            message: 'Invalid config format',
-            data: null,
-          });
-          return;
-        }
-      }
-
-      // 如果没有要更新的字段，直接返回成功
-      if (updateFields.length === 0) {
-        res.json({
-          code: 0,
-          message: 'update agent success',
-          data: null,
-        });
-        return;
-      }
-
-      // 执行更新
-      updateValues.push(agentId);
-      const sql = `UPDATE agents SET ${updateFields.join(', ')} WHERE id = ?`;
-
-      await query(sql, updateValues);
+      await query('UPDATE agents SET latest_version = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [
+        newVersion,
+        agentId,
+      ]);
 
       res.json({
         code: 0,
-        message: 'update agent success',
-        data: null,
+        message: 'publish new agent version success',
+        data: { agentId, version: newVersion },
       });
     } catch (error) {
       console.error('Update agent error:', error);
@@ -576,18 +536,20 @@ router.get(
         }
       }
 
-      let sql =
-        "SELECT id, name, description, avatar, tag, status, created_at, updated_at FROM agents WHERE status = 'public'";
+      let sql = `SELECT a.id, a.name, a.avatar, a.tag, a.status, a.latest_version, a.created_at, a.updated_at, av.description
+        FROM agents a
+        LEFT JOIN agent_versions av ON av.agent_id = a.id AND av.version = a.latest_version
+        WHERE a.status = 'public'`;
       const params: string[] = [];
 
       if (tag) {
-        sql += ' AND FIND_IN_SET(?, tag)';
+        sql += ' AND a.tag = ?';
         params.push(tag);
       }
 
-      sql += ' ORDER BY updated_at DESC';
+      sql += ' ORDER BY a.updated_at DESC';
 
-      const rows = await query<AgentInDB>(sql, params.length > 0 ? params : []);
+      const rows = await query<AgentListRow>(sql, params.length > 0 ? params : []);
 
       res.json({
         code: 0,

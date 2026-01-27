@@ -159,17 +159,20 @@ export interface AgentListItem {
   avatar: string | null;
   tag: string | null;
   status: 'private' | 'public';
+  latestVersion: number;
   createdAt: string;
   updatedAt: string;
 }
 
+/** agents 表行（版本架构下无 description/config，以 latest_version 指向最新版本） */
 export interface AgentInDB {
   id: string;
   name: string;
-  description: string | null;
   avatar: string | null;
   tag: string | null;
   status: 'private' | 'public';
+  creator_id: string | null;
+  latest_version: number;
   created_at: string;
   updated_at: string;
 }
@@ -184,6 +187,7 @@ export interface CreateAgentRequest {
 
 export interface CreateAgentResponse {
   agentId: string;
+  latestVersion: number;
 }
 
 // Agent 配置类型
@@ -193,7 +197,7 @@ export interface AgentConfig {
   mcpConfig: unknown | null;
 }
 
-// Agent 详情（包含配置）
+// Agent 详情（包含「当前最新版本」的配置）
 export interface AgentDetail {
   agentId: string;
   name: string;
@@ -201,9 +205,16 @@ export interface AgentDetail {
   avatar: string | null;
   tag: string | null;
   status: 'private' | 'public';
+  version: number;
   config: AgentConfig;
   createdAt: string;
   updatedAt: string;
+}
+
+// 更新/发布接口的响应
+export interface UpdateAgentResponse {
+  agentId: string;
+  version: number;
 }
 
 // 更新 Agent
