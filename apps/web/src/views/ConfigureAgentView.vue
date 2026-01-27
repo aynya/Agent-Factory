@@ -243,114 +243,85 @@
                   调试对话环境（基于当前版本）
                 </div>
               </div>
-
-              <div
-                v-for="msg in chatStore.messages"
-                :key="msg.id"
-                class="flex gap-3"
-                :class="msg.role === 'user' ? 'justify-end' : 'justify-start'"
-              >
-                <!-- 用户消息 -->
-                <div v-if="msg.role === 'user'" class="flex gap-3 max-w-[80%]">
-                  <div class="bg-indigo-600 text-white p-3 rounded-2xl rounded-tr-none shadow-sm">
-                    <p class="text-sm whitespace-pre-wrap break-words">{{ msg.content }}</p>
-                  </div>
-                  <div
-                    class="w-8 h-8 rounded-xl bg-indigo-100 flex items-center justify-center text-indigo-600 shrink-0 shadow-sm font-bold text-xs uppercase"
-                  >
-                    AY
-                  </div>
-                </div>
-
-                <!-- AI 回复 -->
-                <div v-else class="flex gap-3 max-w-[80%]">
-                  <div class="w-8 h-8 rounded-xl overflow-hidden shrink-0 shadow-sm">
-                    <img
-                      v-if="avatar"
-                      :src="getAvatarUrl(avatar)"
-                      class="w-full h-full object-cover"
-                      alt="Agent"
-                    />
-                    <div
-                      v-else
-                      class="w-full h-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center"
-                    >
-                      <el-icon :size="16" class="text-white">
-                        <Avatar />
-                      </el-icon>
-                    </div>
-                  </div>
-                  <div
-                    class="bg-white border border-slate-100 p-3 rounded-2xl rounded-tl-none shadow-sm min-w-0"
-                    :class="msg.isError ? 'border-red-200 bg-red-50' : ''"
-                  >
-                    <div
-                      v-if="msg.content"
-                      class="prose prose-sm max-w-none markdown-body text-slate-700 text-sm leading-relaxed"
-                      :class="msg.isError ? 'text-red-600' : ''"
-                      v-html="renderMarkdown(msg.content)"
-                    />
-                    <div
-                      v-else-if="msg.isStreaming"
-                      class="flex items-center gap-2 text-slate-400 text-sm"
-                    >
-                      <span class="inline-block w-2 h-2 bg-slate-400 rounded-full animate-pulse" />
-                      <span>正在生成...</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <main class="max-w-4xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+                <ChatMessageItem v-for="msg in chatStore.messages" :key="msg.id" :message="msg" />
+              </main>
             </template>
           </div>
         </div>
 
-        <!-- 调试输入框 -->
+        <!-- 调试输入框（与 ChatView 输入区一致） -->
         <div
           v-if="debugThreadId && !debugThreadLoading"
-          class="p-6 bg-white border-t border-slate-100 shrink-0"
+          class="px-4 pb-8 pt-2 bg-transparent border-t border-slate-100 shrink-0"
         >
-          <div class="max-w-3xl mx-auto relative group">
+          <div class="max-w-4xl mx-auto w-full relative">
             <div
-              class="absolute inset-0 bg-indigo-50 rounded-2xl scale-[1.02] opacity-0 group-focus-within:opacity-100 transition-all"
+              class="absolute -top-8 left-0 right-0 h-8 bg-gradient-to-t from-[#F8FAFC] to-transparent pointer-events-none"
             />
-            <div class="relative flex gap-2 items-end">
-              <input
-                v-model="debugInput"
-                type="text"
-                placeholder="输入消息开始调试..."
-                :disabled="chatStore.isGenerating"
-                class="flex-1 bg-slate-50 border-2 border-slate-200 rounded-2xl py-3 pl-5 pr-4 text-sm text-slate-800 placeholder-slate-400 focus:bg-white focus:ring-4 focus:ring-indigo-50/50 focus:border-indigo-200 transition-all outline-none disabled:opacity-60 disabled:cursor-not-allowed"
-                @keydown.enter.prevent="handleSendDebug()"
-              />
-              <button
-                v-if="chatStore.isGenerating"
-                type="button"
-                class="w-10 h-10 shrink-0 rounded-xl bg-red-100 text-red-600 flex items-center justify-center hover:bg-red-200 transition-colors"
-                @click="chatStore.interruptGeneration()"
-              >
-                <el-icon :size="18">
-                  <Close />
-                </el-icon>
-              </button>
-              <button
-                v-else
-                type="button"
-                class="w-10 h-10 shrink-0 rounded-xl bg-indigo-600 text-white flex items-center justify-center hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                :disabled="!debugInput.trim()"
-                @click="handleSendDebug()"
-              >
-                <el-icon :size="18">
-                  <Promotion />
-                </el-icon>
-              </button>
+            <div
+              class="relative bg-white rounded-[28px] border border-gray-200 shadow-sm hover:shadow-md transition-shadow p-2 pl-5"
+            >
+              <div class="flex flex-col">
+                <el-input
+                  v-model="debugInput"
+                  type="textarea"
+                  :autosize="{ minRows: 1, maxRows: 8 }"
+                  placeholder="输入消息开始调试..."
+                  class="gemini-input mt-2"
+                  :disabled="chatStore.isGenerating"
+                  @keydown.ctrl.enter.prevent="handleSendDebug()"
+                  @keydown.meta.enter.prevent="handleSendDebug()"
+                />
+
+                <div class="flex items-center justify-between mt-2 mb-1 pr-2">
+                  <div class="flex items-center gap-1 text-gray-500">
+                    <el-button :icon="Plus" circle text class="!p-2 hover:bg-gray-100" />
+                    <el-button :icon="Picture" circle text class="!p-2 hover:bg-gray-100" />
+                  </div>
+
+                  <div class="flex items-center">
+                    <transition mode="out-in">
+                      <el-button
+                        v-if="chatStore.isGenerating"
+                        type="danger"
+                        circle
+                        class="!w-10 !h-10 !p-0"
+                        @click="chatStore.interruptGeneration()"
+                      >
+                        <el-icon :size="20">
+                          <Close />
+                        </el-icon>
+                      </el-button>
+                      <el-button
+                        v-else
+                        type="primary"
+                        circle
+                        :disabled="!debugInput.trim()"
+                        class="!w-10 !h-10 !p-0 !border-none send-btn"
+                        @click="handleSendDebug()"
+                      >
+                        <el-icon :size="20">
+                          <Promotion />
+                        </el-icon>
+                      </el-button>
+                    </transition>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
-          <div class="max-w-3xl mx-auto flex gap-2 mt-4 overflow-x-auto pb-2">
+          <div
+            class="max-w-4xl mx-auto w-full mt-3 text-[11px] text-gray-400 text-center font-light"
+          >
+            AI 可能会产生错误信息，请核实重要信息。按 Ctrl+Enter 发送
+          </div>
+          <div class="max-w-4xl mx-auto w-full flex gap-2 mt-4 overflow-x-auto pb-2">
             <button
               v-for="(suggestion, i) in suggestions"
               :key="i"
               type="button"
-              class="whitespace-nowrap bg-slate-50 border border-slate-100 px-3 py-1.5 rounded-lg text-[10px] font-bold text-slate-500 hover:text-indigo-600 hover:border-indigo-200 transition-colors"
+              class="whitespace-nowrap bg-gray-50 border border-gray-100 px-3 py-1.5 rounded-lg text-[10px] font-bold text-gray-500 hover:text-blue-600 hover:border-blue-200 transition-colors"
               :disabled="chatStore.isGenerating"
               @click="useSuggestion(suggestion)"
             >
@@ -386,6 +357,8 @@ import {
   InfoFilled,
   PriceTag,
   Promotion,
+  Plus,
+  Picture,
   Tools,
   Close,
 } from '@element-plus/icons-vue'
@@ -394,8 +367,7 @@ import { getAgentDetail, updateAgent, getAgentDebugThread } from '@/utils/api'
 import { useChatStore } from '@/stores/chat'
 import { getAvatarUrl } from '@/utils/avatar'
 import { formatVersion } from '@/utils/version'
-import { createMarkdownRenderer, renderMarkdown as renderMarkdownUtil } from '@monorepo/utils'
-import 'highlight.js/styles/github-dark.css'
+import ChatMessageItem from '@/components/ChatMessageItem.vue'
 
 const setHeaderTitle = inject<(t: string | null) => void>('setHeaderTitle')
 const route = useRoute()
@@ -426,11 +398,6 @@ const debugMessagesContainer = ref<HTMLElement | null>(null)
 const debugThreadId = ref<string | null>(null)
 const debugThreadLoading = ref(false)
 const debugInput = ref('')
-
-const md = createMarkdownRenderer()
-function renderMarkdown(text: string): string {
-  return renderMarkdownUtil(text, md)
-}
 
 const tagLabel = computed(() => {
   if (!tag.value) return '未设置'
@@ -592,17 +559,29 @@ function useSuggestion(s: string) {
   background: #94a3b8;
 }
 
-/* 调试消息 markdown 基础样式 */
-:deep(.markdown-body pre),
-:deep(.markdown-body code) {
-  font-size: 12px;
+/* 调试输入框（与 ChatView 一致） */
+:deep(.gemini-input .el-textarea__inner) {
+  box-shadow: none !important;
+  border: none !important;
+  padding: 0 !important;
+  background: transparent !important;
+  font-size: 16px;
+  line-height: 1.5;
+  color: #1f1f1f;
+  resize: none;
 }
-:deep(.markdown-body p) {
-  margin: 0.25em 0;
+
+.send-btn {
+  background-color: #1a73e8 !important;
+  transition: all 0.2s ease;
 }
-:deep(.markdown-body ul),
-:deep(.markdown-body ol) {
-  margin: 0.25em 0;
-  padding-left: 1.25em;
+
+.send-btn:disabled {
+  background-color: #f1f3f4 !important;
+  color: #9aa0a6 !important;
+}
+
+.send-btn:active {
+  transform: scale(0.9);
 }
 </style>
