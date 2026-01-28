@@ -260,96 +260,18 @@
           v-if="debugThreadId && !debugThreadLoading"
           class="px-4 pb-8 pt-2 bg-transparent shrink-0 relative"
         >
-          <div class="max-w-4xl mx-auto w-full relative">
-            <!-- 自动滚动到底部按钮 -->
-            <button
-              v-if="showScrollButton"
-              @click="scrollToBottom(false)"
-              class="absolute left-1/2 -translate-x-1/2 -top-12 w-10 h-10 rounded-full shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center z-10 scroll-to-bottom-btn border"
-              :class="{
-                'animate-pulse border-blue-500 bg-blue-50': chatStore.isGenerating,
-                'bg-white border-gray-300 hover:bg-gray-50': !chatStore.isGenerating,
-              }"
-            >
-              <el-icon
-                :size="18"
-                :style="{ color: chatStore.isGenerating ? '#2563eb' : '#4b5563' }"
-              >
-                <ArrowDown />
-              </el-icon>
-            </button>
-            <div
-              class="absolute -top-8 left-0 right-0 h-8 bg-gradient-to-t from-[#F8FAFC] to-transparent pointer-events-none"
-            />
-            <div
-              class="relative bg-white rounded-[28px] border border-gray-200 shadow-sm hover:shadow-md transition-shadow p-2 pl-5"
-            >
-              <div class="flex flex-col">
-                <el-input
-                  v-model="debugInput"
-                  type="textarea"
-                  :autosize="{ minRows: 1, maxRows: 8 }"
-                  placeholder="输入消息开始调试..."
-                  class="gemini-input mt-2"
-                  :disabled="chatStore.isGenerating"
-                  @keydown.ctrl.enter.prevent="handleSendDebug()"
-                  @keydown.meta.enter.prevent="handleSendDebug()"
-                />
-
-                <div class="flex items-center justify-between mt-2 mb-1 pr-2">
-                  <div class="flex items-center gap-1 text-gray-500">
-                    <el-button :icon="Plus" circle text class="!p-2 hover:bg-gray-100" />
-                    <el-button :icon="Picture" circle text class="!p-2 hover:bg-gray-100" />
-                  </div>
-
-                  <div class="flex items-center">
-                    <transition mode="out-in">
-                      <el-button
-                        v-if="chatStore.isGenerating"
-                        type="danger"
-                        circle
-                        class="!w-10 !h-10 !p-0"
-                        @click="chatStore.interruptGeneration()"
-                      >
-                        <el-icon :size="20">
-                          <Close />
-                        </el-icon>
-                      </el-button>
-                      <el-button
-                        v-else
-                        type="primary"
-                        circle
-                        :disabled="!debugInput.trim()"
-                        class="!w-10 !h-10 !p-0 !border-none send-btn"
-                        @click="handleSendDebug()"
-                      >
-                        <el-icon :size="20">
-                          <Promotion />
-                        </el-icon>
-                      </el-button>
-                    </transition>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div
-            class="max-w-4xl mx-auto w-full mt-3 text-[11px] text-gray-400 text-center font-light"
-          >
-            AI 可能会产生错误信息，请核实重要信息。按 Ctrl+Enter 发送
-          </div>
-          <div class="max-w-4xl mx-auto w-full flex gap-2 mt-4 overflow-x-auto pb-2">
-            <button
-              v-for="(suggestion, i) in suggestions"
-              :key="i"
-              type="button"
-              class="whitespace-nowrap bg-gray-50 border border-gray-100 px-3 py-1.5 rounded-lg text-[10px] font-bold text-gray-500 hover:text-blue-600 hover:border-blue-200 transition-colors"
-              :disabled="chatStore.isGenerating"
-              @click="useSuggestion(suggestion)"
-            >
-              {{ suggestion }}
-            </button>
-          </div>
+          <ChatInput
+            v-model="debugInput"
+            placeholder="输入消息开始调试..."
+            :is-generating="chatStore.isGenerating"
+            :show-scroll-button="showScrollButton"
+            :suggestions="suggestions"
+            gradient-color="#F8FAFC"
+            @send="handleSendDebug"
+            @interrupt="chatStore.interruptGeneration()"
+            @scroll-to-bottom="scrollToBottom(false)"
+            @suggestion-click="useSuggestion"
+          />
         </div>
       </div>
     </div>
@@ -378,12 +300,7 @@ import {
   Document,
   InfoFilled,
   PriceTag,
-  Promotion,
-  Plus,
-  Picture,
   Tools,
-  Close,
-  ArrowDown,
 } from '@element-plus/icons-vue'
 import type { UpdateAgentRequest } from '@monorepo/types'
 import { getAgentDetail, updateAgent, getAgentDebugThread } from '@/utils/api'
@@ -391,6 +308,7 @@ import { useChatStore } from '@/stores/chat'
 import { getAvatarUrl } from '@/utils/avatar'
 import { formatVersion } from '@/utils/version'
 import ChatMessageItem from '@/components/ChatMessageItem.vue'
+import ChatInput from '@/components/ChatInput.vue'
 import { useAutoScroll } from '@/composables/useAutoScroll'
 
 const setHeaderTitle = inject<(t: string | null) => void>('setHeaderTitle')
@@ -593,40 +511,5 @@ function useSuggestion(s: string) {
 
 .debug-messages-container::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
-}
-
-/* 调试输入框（与 ChatView 一致） */
-:deep(.gemini-input .el-textarea__inner) {
-  box-shadow: none !important;
-  border: none !important;
-  padding: 0 !important;
-  background: transparent !important;
-  font-size: 16px;
-  line-height: 1.5;
-  color: #1f1f1f;
-  resize: none;
-}
-
-.send-btn {
-  background-color: #1a73e8 !important;
-  transition: all 0.2s ease;
-}
-
-.send-btn:disabled {
-  background-color: #f1f3f4 !important;
-  color: #9aa0a6 !important;
-}
-
-.send-btn:active {
-  transform: scale(0.9);
-}
-
-/* 滚动按钮动画 */
-.scroll-to-bottom-btn {
-  cursor: pointer;
-}
-
-.scroll-to-bottom-btn:active {
-  transform: translateX(-50%) scale(0.9);
 }
 </style>
