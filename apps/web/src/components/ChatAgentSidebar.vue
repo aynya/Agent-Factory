@@ -98,8 +98,8 @@
           </div>
         </div>
 
-        <!-- 用户创建的智能体：展示系统提示词（与核心描述同样式，更高高度限制） -->
-        <div v-if="isOwner && agent.systemPrompt != null" class="space-y-4">
+        <!-- 系统提示词（与核心描述同样式，更高高度限制；所有人一致展示） -->
+        <div v-if="agent.systemPrompt != null && agent.systemPrompt !== ''" class="space-y-4">
           <div class="flex items-center gap-3">
             <div
               class="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-500 flex items-center justify-center"
@@ -138,13 +138,9 @@ export interface ChatAgentSidebarAgent {
   systemPrompt?: string | null
 }
 
-withDefaults(
-  defineProps<{
-    agent: ChatAgentSidebarAgent | null
-    isOwner?: boolean
-  }>(),
-  { isOwner: false }
-)
+defineProps<{
+  agent: ChatAgentSidebarAgent | null
+}>()
 
 const agentCategories = [
   { id: 'assistant', label: '助手' },

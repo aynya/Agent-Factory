@@ -101,12 +101,8 @@
       </transition>
     </div>
 
-    <!-- 右侧列：有 currentAgentId 时即占位固定宽度，避免数据加载后布局闪动 -->
-    <ChatAgentSidebar
-      v-if="currentAgentId"
-      :agent="currentAgentDetail"
-      :is-owner="currentAgentIsOwner"
-    />
+    <!-- 右侧列：有当前会话 threadId 时即占位固定宽度，避免数据加载后布局闪动 -->
+    <ChatAgentSidebar v-if="currentThreadIdForSidebar" :agent="currentAgentDetail" />
   </div>
 </template>
 
@@ -121,8 +117,7 @@ import ChatMessageItem from '@/components/ChatMessageItem.vue'
 import ChatInput from '@/components/ChatInput.vue'
 import ChatAgentSidebar from '@/components/ChatAgentSidebar.vue'
 import type { ChatAgentSidebarAgent } from '@/components/ChatAgentSidebar.vue'
-import { getAgentDetail, getPublicAgents, getMyAgents } from '@/utils/api'
-import type { AgentDetail, AgentListItem } from '@monorepo/types'
+import { getThreadAgent } from '@/utils/api'
 import { useAutoScroll } from '@/composables/useAutoScroll'
 
 const setHeaderTitle = inject<(t: string | null) => void>('setHeaderTitle')
@@ -173,63 +168,32 @@ const currentThreadTitle = computed(() => {
 })
 
 /**
- * 当前对话对应的智能体 ID（有会话且能拿到 thread 时才有，用于详情侧边栏）
+ * 当前对话的 threadId（仅当路由在 /chat/:threadId 时才有值，用于侧边栏拉取 agent）
+ * 只用路由参数，避免首页发首条消息时 sendMessage 先设置 currentThreadId 导致 watch 提前触发
+ * getThreadAgent，此时服务端 thread 尚未创建。应在「先发消息 → 再跳转 /chat/:threadId」之后再由 watch 拉取。
  */
-const currentAgentId = computed(() => {
-  const threadId = (route.params.threadId as string | undefined) || chatStore.currentThreadId
-  if (!threadId) return null
-  const thread = chatStore.threads.find(t => t.threadId === threadId)
-  return thread?.agentId ?? null
+const currentThreadIdForSidebar = computed(() => {
+  const threadId = route.params.threadId
+  return threadId && typeof threadId === 'string' ? threadId : null
 })
 
-/** 当前智能体详情（在挂载/切换会话时获取，供侧边栏展示） */
+/** 当前智能体详情（通过 thread 拉取，所有人展示一致，含系统提示词） */
 const currentAgentDetail = ref<ChatAgentSidebarAgent | null>(null)
-/** 当前智能体是否为当前用户创建（决定是否展示系统提示词） */
-const currentAgentIsOwner = ref(false)
 
-function fromDetail(d: AgentDetail): ChatAgentSidebarAgent {
-  return {
-    name: d.name,
-    description: d.description,
-    avatar: d.avatar,
-    tag: d.tag,
-    version: d.version,
-    systemPrompt: d.config?.systemPrompt ?? null,
-  }
-}
-
-function fromListItem(item: AgentListItem): ChatAgentSidebarAgent {
-  return {
-    name: item.name,
-    description: item.description,
-    avatar: item.avatar,
-    tag: item.tag,
-    version: item.latestVersion,
-    systemPrompt: undefined,
-  }
-}
-
-/** 根据 agentId 获取智能体详情（详情接口仅创建者可访问，否则从公开/我的列表取） */
-async function fetchCurrentAgent(agentId: string) {
+/** 通过 thread 获取该会话使用的 agent 展示信息（不区分是否创建者，所有人一致） */
+async function fetchThreadAgent(threadId: string) {
   currentAgentDetail.value = null
-  currentAgentIsOwner.value = false
   try {
-    const res = await getAgentDetail(agentId)
+    const res = await getThreadAgent(threadId)
     if (res.code === 0 && res.data) {
-      currentAgentDetail.value = fromDetail(res.data)
-      currentAgentIsOwner.value = true
-      return
-    }
-    if (res.code === 403 || res.code === 404) {
-      const [publicRes, myRes] = await Promise.all([getPublicAgents(), getMyAgents()])
-      const list = [
-        ...(publicRes.code === 0 && publicRes.data ? publicRes.data : []),
-        ...(myRes.code === 0 && myRes.data ? myRes.data : []),
-      ]
-      const item = list.find(a => a.agentId === agentId)
-      if (item) {
-        currentAgentDetail.value = fromListItem(item)
-        currentAgentIsOwner.value = false
+      const d = res.data
+      currentAgentDetail.value = {
+        name: d.name,
+        description: d.description,
+        avatar: d.avatar,
+        tag: d.tag,
+        version: d.agentVersion,
+        systemPrompt: d.systemPrompt ?? null,
       }
     }
   } catch {
@@ -323,15 +287,14 @@ watch(currentThreadTitle, t => {
   setHeaderTitle?.(t ?? null)
 })
 
-// 当前会话对应的智能体变化时，获取其详情供侧边栏展示
+// 当前会话 threadId 变化时，通过 thread 拉取 agent 展示信息（所有人一致）
 watch(
-  currentAgentId,
-  async agentId => {
-    if (agentId) {
-      await fetchCurrentAgent(agentId)
+  currentThreadIdForSidebar,
+  async threadId => {
+    if (threadId) {
+      await fetchThreadAgent(threadId)
     } else {
       currentAgentDetail.value = null
-      currentAgentIsOwner.value = false
     }
   },
   { immediate: true }
@@ -341,7 +304,6 @@ onMounted(async () => {
   setHeaderTitle?.(currentThreadTitle.value ?? null)
   const threadId = route.params.threadId
   if (threadId && typeof threadId === 'string') {
-    // 若会话列表尚未加载，先加载以便 currentAgentId 可用（侧边栏需据此拉取 agent 详情）
     if (chatStore.threads.length === 0) {
       await chatStore.loadThreads()
     }
@@ -351,7 +313,7 @@ onMounted(async () => {
   } else {
     await chatStore.createNewThread()
   }
-  // 当前对话的智能体详情由 watch(currentAgentId) 在挂载时（immediate: true）及切换会话时自动拉取
+  // 当前对话的智能体详情由 watch(currentThreadIdForSidebar) 通过 getThreadAgent 自动拉取
   scrollToBottom(false)
 })
 
