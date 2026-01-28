@@ -14,6 +14,7 @@ import type {
   UpdateAgentRequest,
   UpdateAgentResponse,
   DebugThread,
+  CreateThreadByAgentResponse,
 } from '@monorepo/types';
 
 const router: Router = Router();
@@ -413,6 +414,83 @@ router.get(
       res.status(500).json({
         code: 5000,
         message: 'Internal server error',
+        data: null,
+      });
+    }
+  }
+);
+
+/**
+ * 通过 Agent 创建 Thread
+ * POST /api/agents/:agentId/threads
+ * 默认使用该 agent 的最新版本创建，用于「开始使用」后跳转到新会话
+ * Authorization: Bearer <access_token>
+ */
+router.post(
+  '/:agentId/threads',
+  authenticateToken,
+  async (req: Request, res: Response<ApiResponse<CreateThreadByAgentResponse>>) => {
+    try {
+      const userId = (
+        req as Request & { user: { user_id: string; username: string } }
+      ).user.user_id;
+      const agentId = req.params.agentId?.trim();
+
+      if (!agentId) {
+        res.status(400).json({
+          code: 400,
+          message: 'agentId is required',
+          data: null,
+        });
+        return;
+      }
+
+      const agentRows = await query<{ id: string; latest_version: number }>(
+        'SELECT id, latest_version FROM agents WHERE id = ?',
+        [agentId]
+      );
+      if (agentRows.length === 0) {
+        res.status(404).json({
+          code: 404,
+          message: 'agent not found',
+          data: null,
+        });
+        return;
+      }
+
+      const agentVersion = agentRows[0]!.latest_version;
+      const threadId = generateUUID();
+
+      await query(
+        'INSERT INTO threads (id, user_id, agent_id, agent_version, title, is_debug) VALUES (?, ?, ?, ?, ?, 0)',
+        [threadId, userId, agentId, agentVersion, '']
+      );
+
+      const inserted = await query<{ updated_at: string }>(
+        'SELECT updated_at FROM threads WHERE id = ?',
+        [threadId]
+      );
+      const createdAt =
+        inserted[0]?.updated_at != null
+          ? new Date(inserted[0].updated_at).toISOString()
+          : new Date().toISOString();
+
+      res.status(201).json({
+        code: 0,
+        message: 'ok',
+        data: {
+          threadId,
+          agentId,
+          agentVersion,
+          isDebug: false as const,
+          createdAt,
+        },
+      });
+    } catch (error: unknown) {
+      console.error('Create thread by agent error:', error);
+      res.status(500).json({
+        code: 500,
+        message: error instanceof Error ? error.message : '服务器内部错误',
         data: null,
       });
     }

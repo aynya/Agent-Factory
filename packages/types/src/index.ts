@@ -150,6 +150,19 @@ export interface ThreadAgentDisplay {
   latestVersion: number;
 }
 
+/**
+ * 通过 Agent 创建 Thread 的响应
+ * POST /api/agents/:agentId/threads 的返回 data 结构
+ * 默认使用该 agent 的最新版本创建
+ */
+export interface CreateThreadByAgentResponse {
+  threadId: string;
+  agentId: string;
+  agentVersion: number;
+  isDebug: false;
+  createdAt: string;
+}
+
 /** 调试会话（GET /api/agents/:agentId/debug-thread 的返回结构） */
 export interface DebugThread {
   threadId: string;

@@ -116,7 +116,8 @@ import { Loading, Plus } from '@element-plus/icons-vue'
 import { ElMessageBox, ElMessage } from 'element-plus'
 import type { AgentListItem } from '@monorepo/types'
 import { useAgentsStore } from '@/stores/agents'
-import { deleteAgent } from '@/utils/api'
+import { useChatStore } from '@/stores/chat'
+import { deleteAgent, createThreadByAgent } from '@/utils/api'
 import AgentCard from '@/components/AgentCard.vue'
 import AgentDetailModal from '@/components/AgentDetailModal.vue'
 
@@ -124,6 +125,7 @@ const setHeaderTitle = inject<(t: string | null) => void>('setHeaderTitle')
 const route = useRoute()
 const router = useRouter()
 const agentsStore = useAgentsStore()
+const chatStore = useChatStore()
 
 const agentCategories = [
   { id: 'assistant', label: '助手' },
@@ -209,11 +211,21 @@ function closeAgentDetail() {
   selectedAgent.value = null
 }
 
-/** 开始使用智能体 */
-function handleStartUsing(agent: AgentListItem) {
-  // TODO: 后续对接跳转到聊天页面或工作台
-  console.log('开始使用:', agent.agentId)
+/** 开始使用智能体：创建 thread 后跳转到该 thread 对话页 */
+async function handleStartUsing(agent: AgentListItem) {
   closeAgentDetail()
+  try {
+    const res = await createThreadByAgent(agent.agentId)
+    if (res.code === 0 && res.data) {
+      await chatStore.refreshThreadsSilently()
+      router.push('/chat/' + res.data.threadId)
+    } else {
+      ElMessage.error(res.message || '创建会话失败')
+    }
+  } catch (e) {
+    console.error('Create thread by agent error:', e)
+    ElMessage.error('创建会话失败，请稍后重试')
+  }
 }
 
 /** 分享智能体 */

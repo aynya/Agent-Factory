@@ -327,5 +327,6 @@ export const useChatStore = defineStore('chat', () => {
     removeThread,
     sendMessage,
     interruptGeneration,
+    refreshThreadsSilently,
   }
 })

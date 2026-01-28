@@ -84,7 +84,7 @@
       <!-- 输入框（有消息时显示在底部，仅在左侧列内） -->
       <transition name="input-fade" mode="out-in">
         <footer
-          v-if="chatStore.messages.length > 0"
+          v-if="route.params.threadId"
           key="input-bottom"
           class="shrink-0 max-w-4xl mx-auto w-full px-4 pb-8 pt-2 bg-transparent input-container input-container-bottom relative"
         >
@@ -180,7 +180,7 @@ const currentThreadIdForSidebar = computed(() => {
 /** 当前智能体详情（通过 thread 拉取，所有人展示一致，含系统提示词） */
 const currentAgentDetail = ref<ChatAgentSidebarAgent | null>(null)
 
-/** 通过 thread 获取该会话使用的 agent 展示信息（不区分是否创建者，所有人一致） */
+/** 通过 thread 获取该会话使用的 agent 展示信息（不区分是否创建者，所有人一致），并同步到 chatStore 供 sendMessage 使用 */
 async function fetchThreadAgent(threadId: string) {
   currentAgentDetail.value = null
   try {
@@ -195,9 +195,13 @@ async function fetchThreadAgent(threadId: string) {
         version: d.agentVersion,
         systemPrompt: d.systemPrompt ?? null,
       }
+      chatStore.setOverrideAgentId(d.agentId)
+    } else {
+      chatStore.setOverrideAgentId(null)
     }
   } catch {
     currentAgentDetail.value = null
+    chatStore.setOverrideAgentId(null)
   }
 }
 
@@ -287,7 +291,7 @@ watch(currentThreadTitle, t => {
   setHeaderTitle?.(t ?? null)
 })
 
-// 当前会话 threadId 变化时，通过 thread 拉取 agent 展示信息（所有人一致）
+// 当前会话 threadId 变化时，通过 thread 拉取 agent 展示信息（所有人一致），并同步 overrideAgentId 供 sendMessage 使用
 watch(
   currentThreadIdForSidebar,
   async threadId => {
@@ -295,6 +299,7 @@ watch(
       await fetchThreadAgent(threadId)
     } else {
       currentAgentDetail.value = null
+      chatStore.setOverrideAgentId(null)
     }
   },
   { immediate: true }

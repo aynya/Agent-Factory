@@ -19,6 +19,7 @@ import type {
   AgentDetail,
   UpdateAgentRequest,
   UpdateAgentResponse,
+  CreateThreadByAgentResponse,
 } from '@monorepo/types'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'
@@ -453,6 +454,22 @@ export async function getAgentDetail(agentId: string): Promise<ApiResponse<Agent
   return request<AgentDetail>(`/api/agents/${agentId}`, {
     method: 'GET',
   })
+}
+
+/**
+ * 通过 Agent 创建 Thread
+ * POST /api/agents/:agentId/threads
+ * 默认使用该 agent 的最新版本创建
+ */
+export async function createThreadByAgent(
+  agentId: string
+): Promise<ApiResponse<CreateThreadByAgentResponse>> {
+  return request<CreateThreadByAgentResponse>(
+    `/api/agents/${encodeURIComponent(agentId)}/threads`,
+    {
+      method: 'POST',
+    }
+  )
 }
 
 /**
