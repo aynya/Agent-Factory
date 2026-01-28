@@ -1,101 +1,113 @@
 <template>
-  <div
-    ref="messagesContainer"
-    @scroll="handleScroll"
-    class="flex-1 flex overflow-y-auto messages-container"
-  >
-    <!-- 主内容区域 -->
-    <main class="flex-1 flex flex-col max-w-4xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6">
-      <!-- 消息列表 -->
-      <div class="flex-1 min-h-0 mb-4 space-y-6">
-        <!-- 欢迎界面（仅在 /chat 路由且无消息时显示） -->
-        <div
-          v-if="!route.params.threadId && chatStore.messages.length === 0"
-          class="flex flex-col items-center justify-center h-full"
-        >
-          <div class="text-center py-12 max-w-2xl mx-auto">
+  <div class="flex-1 flex overflow-hidden min-h-0">
+    <!-- 左侧列：消息区(1) + 输入框(3) -->
+    <div class="flex-1 flex flex-col min-h-0 min-w-0">
+      <div
+        ref="messagesContainer"
+        @scroll="handleScroll"
+        class="flex-1 flex overflow-y-auto messages-container min-h-0"
+      >
+        <!-- 主内容区域 -->
+        <main class="flex-1 flex flex-col max-w-4xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6">
+          <!-- 消息列表 -->
+          <div class="flex-1 min-h-0 mb-4 space-y-6">
+            <!-- 欢迎界面（仅在 /chat 路由且无消息时显示） -->
             <div
-              class="inline-flex items-center justify-center w-20 h-20 bg-blue-100 rounded-full mb-6"
-            >
-              <el-icon :size="40" class="text-blue-600">
-                <ChatDotRound />
-              </el-icon>
-            </div>
-            <h2 class="text-3xl font-semibold text-gray-900 mb-2">
-              {{ authStore.user?.username || '你好' }}, 你好
-            </h2>
-            <p class="text-lg text-gray-500 mb-8">需要我为你做些什么?</p>
-            <!-- 快捷提示按钮 -->
-            <div class="grid grid-cols-2 gap-3 max-w-md mx-auto">
-              <button
-                class="px-4 py-3 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-sm text-gray-700"
-                @click="handleQuickPrompt('帮我写一段代码')"
-              >
-                帮我写代码
-              </button>
-              <button
-                class="px-4 py-3 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-sm text-gray-700"
-                @click="handleQuickPrompt('解释一下这个概念')"
-              >
-                解释概念
-              </button>
-              <button
-                class="px-4 py-3 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-sm text-gray-700"
-                @click="handleQuickPrompt('帮我学习新知识')"
-              >
-                帮我学习
-              </button>
-              <button
-                class="px-4 py-3 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-sm text-gray-700"
-                @click="handleQuickPrompt('给我一些建议')"
-              >
-                给我建议
-              </button>
-            </div>
-          </div>
-
-          <!-- 输入框（在欢迎界面时显示在中间） -->
-          <transition name="input-fade" mode="out-in">
-            <ChatInput
               v-if="!route.params.threadId && chatStore.messages.length === 0"
-              key="input-center"
-              v-model="inputText"
-              :is-generating="chatStore.isGenerating"
-              container-class="w-full max-w-2xl mx-auto mt-4 input-container input-container-center"
-              @send="handleSend"
-              @interrupt="handleInterrupt"
+              class="flex flex-col items-center justify-center h-full"
+            >
+              <div class="text-center py-12 max-w-2xl mx-auto">
+                <div
+                  class="inline-flex items-center justify-center w-20 h-20 bg-blue-100 rounded-full mb-6"
+                >
+                  <el-icon :size="40" class="text-blue-600">
+                    <ChatDotRound />
+                  </el-icon>
+                </div>
+                <h2 class="text-3xl font-semibold text-gray-900 mb-2">
+                  {{ authStore.user?.username || '你好' }}, 你好
+                </h2>
+                <p class="text-lg text-gray-500 mb-8">需要我为你做些什么?</p>
+                <!-- 快捷提示按钮 -->
+                <div class="grid grid-cols-2 gap-3 max-w-md mx-auto">
+                  <button
+                    class="px-4 py-3 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-sm text-gray-700"
+                    @click="handleQuickPrompt('帮我写一段代码')"
+                  >
+                    帮我写代码
+                  </button>
+                  <button
+                    class="px-4 py-3 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-sm text-gray-700"
+                    @click="handleQuickPrompt('解释一下这个概念')"
+                  >
+                    解释概念
+                  </button>
+                  <button
+                    class="px-4 py-3 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-sm text-gray-700"
+                    @click="handleQuickPrompt('帮我学习新知识')"
+                  >
+                    帮我学习
+                  </button>
+                  <button
+                    class="px-4 py-3 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-sm text-gray-700"
+                    @click="handleQuickPrompt('给我一些建议')"
+                  >
+                    给我建议
+                  </button>
+                </div>
+              </div>
+
+              <!-- 输入框（在欢迎界面时显示在中间） -->
+              <transition name="input-fade" mode="out-in">
+                <ChatInput
+                  v-if="!route.params.threadId && chatStore.messages.length === 0"
+                  key="input-center"
+                  v-model="inputText"
+                  :is-generating="chatStore.isGenerating"
+                  container-class="w-full max-w-2xl mx-auto mt-4 input-container input-container-center"
+                  @send="handleSend"
+                  @interrupt="handleInterrupt"
+                />
+              </transition>
+            </div>
+
+            <ChatMessageItem
+              v-for="message in chatStore.messages"
+              :key="message.id"
+              :message="message"
             />
-          </transition>
-        </div>
-
-        <ChatMessageItem
-          v-for="message in chatStore.messages"
-          :key="message.id"
-          :message="message"
-        />
-        <div class="w-[100%] h-8"></div>
+            <div class="w-[100%] h-8"></div>
+          </div>
+        </main>
       </div>
-    </main>
-  </div>
 
-  <!-- 输入框（有消息时显示在底部） -->
-  <transition name="input-fade" mode="out-in">
-    <footer
-      v-if="chatStore.messages.length > 0"
-      key="input-bottom"
-      class="max-w-4xl mx-auto w-full px-4 pb-8 pt-2 bg-transparent input-container input-container-bottom relative"
-    >
-      <ChatInput
-        v-model="inputText"
-        :is-generating="chatStore.isGenerating"
-        :show-scroll-button="showScrollButton"
-        gradient-color="rgb(249, 250, 251)"
-        @send="handleSend"
-        @interrupt="handleInterrupt"
-        @scroll-to-bottom="scrollToBottom(false)"
-      />
-    </footer>
-  </transition>
+      <!-- 输入框（有消息时显示在底部，仅在左侧列内） -->
+      <transition name="input-fade" mode="out-in">
+        <footer
+          v-if="chatStore.messages.length > 0"
+          key="input-bottom"
+          class="shrink-0 max-w-4xl mx-auto w-full px-4 pb-8 pt-2 bg-transparent input-container input-container-bottom relative"
+        >
+          <ChatInput
+            v-model="inputText"
+            :is-generating="chatStore.isGenerating"
+            :show-scroll-button="showScrollButton"
+            gradient-color="rgb(249, 250, 251)"
+            @send="handleSend"
+            @interrupt="handleInterrupt"
+            @scroll-to-bottom="scrollToBottom(false)"
+          />
+        </footer>
+      </transition>
+    </div>
+
+    <!-- 右侧列：有 currentAgentId 时即占位固定宽度，避免数据加载后布局闪动 -->
+    <ChatAgentSidebar
+      v-if="currentAgentId"
+      :agent="currentAgentDetail"
+      :is-owner="currentAgentIsOwner"
+    />
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -107,6 +119,10 @@ import { useAuthStore } from '@/stores/auth'
 import { useChatStore } from '@/stores/chat'
 import ChatMessageItem from '@/components/ChatMessageItem.vue'
 import ChatInput from '@/components/ChatInput.vue'
+import ChatAgentSidebar from '@/components/ChatAgentSidebar.vue'
+import type { ChatAgentSidebarAgent } from '@/components/ChatAgentSidebar.vue'
+import { getAgentDetail, getPublicAgents, getMyAgents } from '@/utils/api'
+import type { AgentDetail, AgentListItem } from '@monorepo/types'
 import { useAutoScroll } from '@/composables/useAutoScroll'
 
 const setHeaderTitle = inject<(t: string | null) => void>('setHeaderTitle')
@@ -155,6 +171,71 @@ const currentThreadTitle = computed(() => {
   const thread = chatStore.threads.find(t => t.threadId === threadId)
   return thread?.title || null
 })
+
+/**
+ * 当前对话对应的智能体 ID（有会话且能拿到 thread 时才有，用于详情侧边栏）
+ */
+const currentAgentId = computed(() => {
+  const threadId = (route.params.threadId as string | undefined) || chatStore.currentThreadId
+  if (!threadId) return null
+  const thread = chatStore.threads.find(t => t.threadId === threadId)
+  return thread?.agentId ?? null
+})
+
+/** 当前智能体详情（在挂载/切换会话时获取，供侧边栏展示） */
+const currentAgentDetail = ref<ChatAgentSidebarAgent | null>(null)
+/** 当前智能体是否为当前用户创建（决定是否展示系统提示词） */
+const currentAgentIsOwner = ref(false)
+
+function fromDetail(d: AgentDetail): ChatAgentSidebarAgent {
+  return {
+    name: d.name,
+    description: d.description,
+    avatar: d.avatar,
+    tag: d.tag,
+    version: d.version,
+    systemPrompt: d.config?.systemPrompt ?? null,
+  }
+}
+
+function fromListItem(item: AgentListItem): ChatAgentSidebarAgent {
+  return {
+    name: item.name,
+    description: item.description,
+    avatar: item.avatar,
+    tag: item.tag,
+    version: item.latestVersion,
+    systemPrompt: undefined,
+  }
+}
+
+/** 根据 agentId 获取智能体详情（详情接口仅创建者可访问，否则从公开/我的列表取） */
+async function fetchCurrentAgent(agentId: string) {
+  currentAgentDetail.value = null
+  currentAgentIsOwner.value = false
+  try {
+    const res = await getAgentDetail(agentId)
+    if (res.code === 0 && res.data) {
+      currentAgentDetail.value = fromDetail(res.data)
+      currentAgentIsOwner.value = true
+      return
+    }
+    if (res.code === 403 || res.code === 404) {
+      const [publicRes, myRes] = await Promise.all([getPublicAgents(), getMyAgents()])
+      const list = [
+        ...(publicRes.code === 0 && publicRes.data ? publicRes.data : []),
+        ...(myRes.code === 0 && myRes.data ? myRes.data : []),
+      ]
+      const item = list.find(a => a.agentId === agentId)
+      if (item) {
+        currentAgentDetail.value = fromListItem(item)
+        currentAgentIsOwner.value = false
+      }
+    }
+  } catch {
+    currentAgentDetail.value = null
+  }
+}
 
 /**
  * 快捷提示
@@ -242,19 +323,35 @@ watch(currentThreadTitle, t => {
   setHeaderTitle?.(t ?? null)
 })
 
+// 当前会话对应的智能体变化时，获取其详情供侧边栏展示
+watch(
+  currentAgentId,
+  async agentId => {
+    if (agentId) {
+      await fetchCurrentAgent(agentId)
+    } else {
+      currentAgentDetail.value = null
+      currentAgentIsOwner.value = false
+    }
+  },
+  { immediate: true }
+)
+
 onMounted(async () => {
   setHeaderTitle?.(currentThreadTitle.value ?? null)
-  // 如果路由中有 threadId，加载对应的会话（仅在首次加载时）
   const threadId = route.params.threadId
   if (threadId && typeof threadId === 'string') {
-    // 只有当当前 store 中的 threadId 与路由不一致时才加载
+    // 若会话列表尚未加载，先加载以便 currentAgentId 可用（侧边栏需据此拉取 agent 详情）
+    if (chatStore.threads.length === 0) {
+      await chatStore.loadThreads()
+    }
     if (chatStore.currentThreadId !== threadId) {
       await chatStore.switchThread(threadId)
     }
   } else {
-    // 在 /chat 路由时，清空当前会话
     await chatStore.createNewThread()
   }
+  // 当前对话的智能体详情由 watch(currentAgentId) 在挂载时（immediate: true）及切换会话时自动拉取
   scrollToBottom(false)
 })
 
