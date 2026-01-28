@@ -211,7 +211,11 @@
       <!-- 右侧调试面板 -->
       <div class="flex-1 flex flex-col bg-[#F8FAFC] min-w-0">
         <div class="flex-1 flex flex-col overflow-hidden">
-          <div ref="debugMessagesContainer" class="flex-1 p-6 space-y-4 overflow-y-auto">
+          <div
+            ref="debugMessagesContainer"
+            @scroll="handleScroll"
+            class="flex-1 p-6 space-y-4 overflow-y-auto debug-messages-container"
+          >
             <!-- 加载调试会话中 -->
             <div
               v-if="debugThreadLoading"
@@ -245,6 +249,7 @@
               </div>
               <main class="max-w-4xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 space-y-6">
                 <ChatMessageItem v-for="msg in chatStore.messages" :key="msg.id" :message="msg" />
+                <div class="w-[100%] h-8"></div>
               </main>
             </template>
           </div>
@@ -253,9 +258,26 @@
         <!-- 调试输入框（与 ChatView 输入区一致） -->
         <div
           v-if="debugThreadId && !debugThreadLoading"
-          class="px-4 pb-8 pt-2 bg-transparent border-t border-slate-100 shrink-0"
+          class="px-4 pb-8 pt-2 bg-transparent shrink-0 relative"
         >
           <div class="max-w-4xl mx-auto w-full relative">
+            <!-- 自动滚动到底部按钮 -->
+            <button
+              v-if="showScrollButton"
+              @click="scrollToBottom(false)"
+              class="absolute left-1/2 -translate-x-1/2 -top-12 w-10 h-10 rounded-full shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center z-10 scroll-to-bottom-btn border"
+              :class="{
+                'animate-pulse border-blue-500 bg-blue-50': chatStore.isGenerating,
+                'bg-white border-gray-300 hover:bg-gray-50': !chatStore.isGenerating,
+              }"
+            >
+              <el-icon
+                :size="18"
+                :style="{ color: chatStore.isGenerating ? '#2563eb' : '#4b5563' }"
+              >
+                <ArrowDown />
+              </el-icon>
+            </button>
             <div
               class="absolute -top-8 left-0 right-0 h-8 bg-gradient-to-t from-[#F8FAFC] to-transparent pointer-events-none"
             />
@@ -361,6 +383,7 @@ import {
   Picture,
   Tools,
   Close,
+  ArrowDown,
 } from '@element-plus/icons-vue'
 import type { UpdateAgentRequest } from '@monorepo/types'
 import { getAgentDetail, updateAgent, getAgentDebugThread } from '@/utils/api'
@@ -368,6 +391,7 @@ import { useChatStore } from '@/stores/chat'
 import { getAvatarUrl } from '@/utils/avatar'
 import { formatVersion } from '@/utils/version'
 import ChatMessageItem from '@/components/ChatMessageItem.vue'
+import { useAutoScroll } from '@/composables/useAutoScroll'
 
 const setHeaderTitle = inject<(t: string | null) => void>('setHeaderTitle')
 const route = useRoute()
@@ -398,6 +422,14 @@ const debugMessagesContainer = ref<HTMLElement | null>(null)
 const debugThreadId = ref<string | null>(null)
 const debugThreadLoading = ref(false)
 const debugInput = ref('')
+
+// 使用自动滚动 composable
+const { showScrollButton, scrollToBottom, handleScroll } = useAutoScroll(debugMessagesContainer, {
+  enableScrollButton: true,
+  scrollOnMount: false, // 在 loadDebugThread 完成后手动调用
+  watchSource: () => chatStore.messages,
+  deep: true,
+})
 
 const tagLabel = computed(() => {
   if (!tag.value) return '未设置'
@@ -466,6 +498,8 @@ async function loadDebugThread() {
       await chatStore.switchThread(threadId)
       // 在 switchThread 完成后再展示调试区，避免短暂显示其他会话的消息
       debugThreadId.value = threadId
+      // 加载完成后滚动到底部
+      scrollToBottom(false)
     } else {
       ElMessage.error(res.message || '获取调试会话失败')
     }
@@ -527,11 +561,13 @@ async function handleSubmit() {
   }
 }
 
-function handleSendDebug() {
+async function handleSendDebug() {
   const content = debugInput.value.trim()
   if (!content || chatStore.isGenerating || !debugThreadId.value) return
-  chatStore.sendMessage(content)
+  await chatStore.sendMessage(content)
   debugInput.value = ''
+  // 发送消息后滚动到底部
+  scrollToBottom(false)
 }
 
 function useSuggestion(s: string) {
@@ -542,20 +578,20 @@ function useSuggestion(s: string) {
 
 <style scoped>
 /* 自定义滚动条样式 */
-.overflow-y-auto::-webkit-scrollbar {
+.debug-messages-container::-webkit-scrollbar {
   width: 6px;
 }
 
-.overflow-y-auto::-webkit-scrollbar-track {
+.debug-messages-container::-webkit-scrollbar-track {
   background: transparent;
 }
 
-.overflow-y-auto::-webkit-scrollbar-thumb {
+.debug-messages-container::-webkit-scrollbar-thumb {
   background: #cbd5e1;
   border-radius: 3px;
 }
 
-.overflow-y-auto::-webkit-scrollbar-thumb:hover {
+.debug-messages-container::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
 
@@ -583,5 +619,14 @@ function useSuggestion(s: string) {
 
 .send-btn:active {
   transform: scale(0.9);
+}
+
+/* 滚动按钮动画 */
+.scroll-to-bottom-btn {
+  cursor: pointer;
+}
+
+.scroll-to-bottom-btn:active {
+  transform: translateX(-50%) scale(0.9);
 }
 </style>

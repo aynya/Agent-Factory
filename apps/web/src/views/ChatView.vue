@@ -212,13 +212,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick, watch, onMounted, onBeforeUnmount, inject } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount, inject } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Promotion, Close, Plus, Picture, ArrowDown } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { useChatStore } from '@/stores/chat'
 import ChatMessageItem from '@/components/ChatMessageItem.vue'
+import { useAutoScroll } from '@/composables/useAutoScroll'
 
 const setHeaderTitle = inject<(t: string | null) => void>('setHeaderTitle')
 
@@ -229,7 +230,30 @@ const chatStore = useChatStore()
 
 const inputText = ref('')
 const messagesContainer = ref<HTMLElement | null>(null)
-const showScrollButton = ref(false)
+
+// 使用自动滚动 composable
+const { showScrollButton, scrollToBottom, handleScroll, updateScrollButtonVisibility } =
+  useAutoScroll(messagesContainer, {
+    enableScrollButton: true,
+    scrollOnMount: false, // 在 onMounted 中手动调用，因为需要先加载数据
+    watchSource: () => chatStore.messages,
+    deep: true,
+    customVisibilityCheck: () => {
+      // 只在有消息且不在欢迎界面时显示按钮
+      const hasMessages = route.params.threadId || chatStore.messages.length > 0
+      if (!hasMessages) {
+        return false
+      }
+      // 如果接近底部，隐藏按钮；否则显示按钮
+      const isNearBottom =
+        messagesContainer.value &&
+        messagesContainer.value.scrollHeight -
+          messagesContainer.value.scrollTop -
+          messagesContainer.value.clientHeight <
+          50
+      return !isNearBottom
+    },
+  })
 
 /**
  * 获取当前 Thread 的标题
@@ -243,53 +267,6 @@ const currentThreadTitle = computed(() => {
   const thread = chatStore.threads.find(t => t.threadId === threadId)
   return thread?.title || null
 })
-
-/**
- * 检查是否接近底部
- */
-function checkIsNearBottom(): boolean {
-  if (!messagesContainer.value) return false
-  return (
-    messagesContainer.value.scrollHeight -
-      messagesContainer.value.scrollTop -
-      messagesContainer.value.clientHeight <
-    50
-  )
-}
-
-/**
- * 更新滚动按钮显示状态
- */
-function updateScrollButtonVisibility() {
-  // 只在有消息且不在欢迎界面时显示按钮
-  const hasMessages = route.params.threadId || chatStore.messages.length > 0
-  if (!hasMessages) {
-    showScrollButton.value = false
-    return
-  }
-  // 如果接近底部，隐藏按钮；否则显示按钮
-  showScrollButton.value = !checkIsNearBottom()
-}
-
-/**
- * 滚动到底部
- * @param isCheck 是否检查接近底部（true: 只有接近底部时才滚动, false: 强制滚动）
- */
-function scrollToBottom(isCheck = true) {
-  nextTick(() => {
-    if (!messagesContainer.value) return
-
-    // 如果需要检查且不接近底部，则不滚动
-    if (isCheck && !checkIsNearBottom()) {
-      return
-    }
-
-    const scrollToValue = messagesContainer.value.scrollHeight
-
-    // 执行滚动
-    messagesContainer.value.scrollTop = scrollToValue
-  })
-}
 
 /**
  * 快捷提示
@@ -354,12 +331,10 @@ watch(
   }
 )
 
-// 监听消息变化，自动滚动到底部并初始化复制按钮
+// 监听消息变化，处理错误消息
 watch(
   () => chatStore.messages,
   () => {
-    // 消息更新时自动滚动到底部
-    scrollToBottom(true)
     if (chatStore.messages[chatStore.messages.length - 1]?.isError) {
       ElMessage.error(chatStore.messages[chatStore.messages.length - 1]?.errorMessage || '生成失败')
     }
@@ -367,18 +342,13 @@ watch(
   { deep: true }
 )
 
-// // 监听 AI 生成状态变化，更新按钮显示
-// watch(
-//   () => chatStore.isGenerating,
-//   () => {
-//     updateScrollButtonVisibility()
-//   }
-// )
-
-// 监听滚动事件，更新按钮显示状态
-function handleScroll() {
-  updateScrollButtonVisibility()
-}
+// 监听滚动事件，更新按钮显示状态（composable 已处理，但需要调用自定义检查）
+watch(
+  () => [route.params.threadId, chatStore.messages.length],
+  () => {
+    updateScrollButtonVisibility()
+  }
+)
 
 watch(currentThreadTitle, t => {
   setHeaderTitle?.(t ?? null)
