@@ -10,6 +10,7 @@ import type {
   ChatAbortRequest,
   ChatAbortResponse,
   Thread,
+  ThreadAgentDisplay,
   Message,
   DebugThread,
   AgentListItem,
@@ -369,6 +370,17 @@ export async function abortChat(data: ChatAbortRequest): Promise<ApiResponse<Cha
  */
 export async function getThreads(): Promise<ApiResponse<Thread[]>> {
   return request<Thread[]>('/api/chat/threads', {
+    method: 'GET',
+  })
+}
+
+/**
+ * 通过 Thread 获取当前对话所使用 Agent 的展示信息
+ * GET /api/threads/:threadId/agent
+ * 用于：对话页侧边栏展示、确认当前使用的 Agent 身份与能力
+ */
+export async function getThreadAgent(threadId: string): Promise<ApiResponse<ThreadAgentDisplay>> {
+  return request<ThreadAgentDisplay>(`/api/threads/${encodeURIComponent(threadId)}/agent`, {
     method: 'GET',
   })
 }

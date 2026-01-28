@@ -133,6 +133,23 @@ export interface ThreadListResponse {
   threads: Thread[];
 }
 
+/**
+ * 通过 Thread 获取当前对话所使用 Agent 的展示信息
+ * GET /api/threads/:threadId/agent 的返回 data 结构
+ * 用于：对话页侧边栏展示、确认当前使用的 Agent 身份与能力
+ */
+export interface ThreadAgentDisplay {
+  agentId: string;
+  agentVersion: number;
+  name: string;
+  description: string | null;
+  avatar: string | null;
+  tag: string | null;
+  systemPrompt: string | null;
+  isLatestVersion: boolean;
+  latestVersion: number;
+}
+
 /** 调试会话（GET /api/agents/:agentId/debug-thread 的返回结构） */
 export interface DebugThread {
   threadId: string;

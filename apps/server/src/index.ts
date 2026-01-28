@@ -7,6 +7,7 @@ import { initDatabase } from './config/init-db.js';
 import authRoutes from './routes/auth.js';
 import chatRoutes from './routes/chat.js';
 import agentsRoutes from './routes/agents.js';
+import threadsRoutes from './routes/threads.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -35,6 +36,7 @@ app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 app.use('/api/auth', authRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/agents', agentsRoutes);
+app.use('/api/threads', threadsRoutes);
 
 // 健康检查接口
 app.get('/health', async (req, res) => {
