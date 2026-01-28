@@ -215,6 +215,7 @@ async function handleQuickPrompt(prompt: string) {
 
 /**
  * 发送消息
+ * 首页发首条消息时：在收到 SSE start（后端已创建 thread）后再跳转，避免拉取 agent 早于 thread 创建
  */
 async function handleSend() {
   if (!inputText.value.trim() || chatStore.isGenerating) return
@@ -227,12 +228,16 @@ async function handleSend() {
     chatStore.createNewThread()
   }
 
-  await chatStore.sendMessage(text)
-
-  // 如果当前在 /chat 路由，跳转到 /chat/:threadId
-  if (!route.params.threadId && chatStore.currentThreadId) {
-    router.push(`/chat/${chatStore.currentThreadId}`)
-  }
+  const needPushAfterAccept = !route.params.threadId
+  await chatStore.sendMessage(text, {
+    onRequestAccepted: needPushAfterAccept
+      ? () => {
+          if (chatStore.currentThreadId) {
+            router.push(`/chat/${chatStore.currentThreadId}`)
+          }
+        }
+      : undefined,
+  })
 
   scrollToBottom(false)
 }

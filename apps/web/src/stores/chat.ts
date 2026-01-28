@@ -174,8 +174,9 @@ export const useChatStore = defineStore('chat', () => {
 
   /**
    * 发送消息
+   * @param onRequestAccepted 后端已接受请求（已发 start 事件、thread 已创建）时调用，用于首页发首条消息后延迟跳转，避免拉取 agent 早于 thread 创建
    */
-  async function sendMessage(content: string) {
+  async function sendMessage(content: string, options?: { onRequestAccepted?: () => void }) {
     if (!content.trim() || isGenerating.value) return
 
     // 如果没有当前会话，创建一个新的 threadId
@@ -224,6 +225,8 @@ export const useChatStore = defineStore('chat', () => {
           message.backendId = event.messageId
           message.createdAt = event.createdAt
         }
+        // 此时后端已创建 thread，可安全跳转并拉取 agent
+        options?.onRequestAccepted?.()
       },
       onToken: event => {
         // 通过 backendId 或 id 查找消息
