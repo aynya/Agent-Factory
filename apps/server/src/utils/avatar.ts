@@ -24,7 +24,7 @@ export function saveAvatarFromBase64(base64: string): string {
   // 解析 base64 数据
   const base64Data = base64.replace(/^data:image\/\w+;base64,/, '');
   const buffer = Buffer.from(base64Data, 'base64');
-  
+
   // 验证文件大小（限制 2MB）
   if (buffer.length > 2 * 1024 * 1024) {
     throw new Error('图片大小不能超过 2MB');
@@ -63,7 +63,11 @@ export function deleteAvatarFile(avatarUrl: string | null | undefined): void {
   }
 
   // 只处理相对路径，不处理 base64 或完整 URL
-  if (avatarUrl.startsWith('data:') || avatarUrl.startsWith('http://') || avatarUrl.startsWith('https://')) {
+  if (
+    avatarUrl.startsWith('data:') ||
+    avatarUrl.startsWith('http://') ||
+    avatarUrl.startsWith('https://')
+  ) {
     return;
   }
 
@@ -71,7 +75,7 @@ export function deleteAvatarFile(avatarUrl: string | null | undefined): void {
     // 提取文件名
     const fileName = path.basename(avatarUrl);
     const filePath = path.join(UPLOAD_DIR, fileName);
-    
+
     // 检查文件是否存在并删除
     if (fs.existsSync(filePath)) {
       fs.unlinkSync(filePath);

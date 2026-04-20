@@ -1,12 +1,12 @@
 # 智能体对话模块：基于 LangChain / LangGraph 的记忆与编排技术方案
 
-| 项     | 内容 |
-|--------|------|
-| 文档类型 | 技术开发方案 |
+| 项       | 内容                                                     |
+| -------- | -------------------------------------------------------- |
+| 文档类型 | 技术开发方案                                             |
 | 适用范围 | `part-4` 仓库：智能体创建与分享平台 — 对话（Chat）子系统 |
-| 关联系统 | `apps/server`（Express）、`apps/web`（Vue）、MySQL |
-| 版本   | v1.0 |
-| 状态   | 待评审 / 实施依据 |
+| 关联系统 | `apps/server`（Express）、`apps/web`（Vue）、MySQL       |
+| 版本     | v1.0                                                     |
+| 状态     | 待评审 / 实施依据                                        |
 
 ---
 
@@ -51,13 +51,13 @@
 
 ## 3. 术语与缩略语
 
-| 术语 | 说明 |
-|------|------|
-| Thread | 会话，对应表 `threads.id`，与前端 `thread_id` 一致。 |
-| Agent Version | 智能体 immutable 配置版本，对应 `agent_versions`。 |
-| LangGraph State | 单次图运行中的结构化状态（如 `messages`、预留的检索结果等）。 |
-| Checkpointer | LangGraph 将图运行中间状态持久化/恢复的组件（如 MemorySaver、DB 类 Saver）。 |
-| SSE | Server-Sent Events，当前聊天流式推送方式。 |
+| 术语            | 说明                                                                         |
+| --------------- | ---------------------------------------------------------------------------- |
+| Thread          | 会话，对应表 `threads.id`，与前端 `thread_id` 一致。                         |
+| Agent Version   | 智能体 immutable 配置版本，对应 `agent_versions`。                           |
+| LangGraph State | 单次图运行中的结构化状态（如 `messages`、预留的检索结果等）。                |
+| Checkpointer    | LangGraph 将图运行中间状态持久化/恢复的组件（如 MemorySaver、DB 类 Saver）。 |
+| SSE             | Server-Sent Events，当前聊天流式推送方式。                                   |
 
 ---
 
@@ -93,8 +93,8 @@
 
 ### 5.3 主要差距
 
-1. 历史策略简单（条数上限），未与 `threads.summary` 联动。  
-2. 业务编排与 HTTP 路由耦合，难以增量加入 RAG/MCP。  
+1. 历史策略简单（条数上限），未与 `threads.summary` 联动。
+2. 业务编排与 HTTP 路由耦合，难以增量加入 RAG/MCP。
 3. LangGraph 内存态（MemorySaver）仅适用于进程内/非持久场景，不能单独作为平台级用户记忆源。
 
 ---
@@ -154,23 +154,23 @@ flowchart TB
 
 ### 7.1 模块划分
 
-| 模块 | 职责 |
-|------|------|
-| `routes/chat.ts`（或等价） | 参数校验、thread 与 agent 版本绑定校验、SSE、取消、异常映射。 |
-| `agent/runtime`（建议新建目录） | 编译图、注入配置、`thread_id` / `user_id` 上下文、流式桥接。 |
-| `agent/graph` | `StateGraph` 定义：节点、边、条件边（预留 tool loop）。 |
-| `agent/memory`（可选命名） | 从 DB 构建 `messages`、Token 截断、摘要触发与 `summary` 读写。 |
+| 模块                            | 职责                                                           |
+| ------------------------------- | -------------------------------------------------------------- |
+| `routes/chat.ts`（或等价）      | 参数校验、thread 与 agent 版本绑定校验、SSE、取消、异常映射。  |
+| `agent/runtime`（建议新建目录） | 编译图、注入配置、`thread_id` / `user_id` 上下文、流式桥接。   |
+| `agent/graph`                   | `StateGraph` 定义：节点、边、条件边（预留 tool loop）。        |
+| `agent/memory`（可选命名）      | 从 DB 构建 `messages`、Token 截断、摘要触发与 `summary` 读写。 |
 
 ### 7.2 LangGraph 状态（State）定义
 
 建议字段（可按 LangGraph `Annotation` 实际 API 落地）：
 
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `messages` | `BaseMessage[]` | 面向模型的多轮消息；含 system / human / ai。 |
-| `summary` | `string \| null` | 来自 `threads.summary`，注入 system 或独立 system 块。 |
-| `retrieved_docs` | 预留 | RAG 检索结果。 |
-| `scratchpad` | 预留 | 工具调用中间结果（与 MCP 对齐）。 |
+| 字段             | 类型             | 说明                                                   |
+| ---------------- | ---------------- | ------------------------------------------------------ |
+| `messages`       | `BaseMessage[]`  | 面向模型的多轮消息；含 system / human / ai。           |
+| `summary`        | `string \| null` | 来自 `threads.summary`，注入 system 或独立 system 块。 |
+| `retrieved_docs` | 预留             | RAG 检索结果。                                         |
+| `scratchpad`     | 预留             | 工具调用中间结果（与 MCP 对齐）。                      |
 
 ### 7.3 图结构（分期）
 
@@ -224,11 +224,11 @@ flowchart TB
 
 ### 7.8 技术选型与依赖
 
-| 组件 | 选型 |
-|------|------|
-| 编排 | `@langchain/langgraph` |
-| 消息与模型 | `@langchain/core`、`@langchain/openai`（与现有 OpenAI 兼容网关共用环境变量） |
-| 服务端运行时 | Node.js（与现 Express 一致） |
+| 组件         | 选型                                                                         |
+| ------------ | ---------------------------------------------------------------------------- |
+| 编排         | `@langchain/langgraph`                                                       |
+| 消息与模型   | `@langchain/core`、`@langchain/openai`（与现有 OpenAI 兼容网关共用环境变量） |
+| 服务端运行时 | Node.js（与现 Express 一致）                                                 |
 
 环境变量建议继续沿用：`OPENAI_API_KEY`、`OPENAI_BASE_URL`、`OPENAI_MODEL`。
 
@@ -244,34 +244,34 @@ flowchart TB
 
 ## 9. 非功能性需求
 
-| 类别 | 要求 |
-|------|------|
-| 可用性 | 与现有一致；图内节点失败可降级策略（尤其 RAG）。 |
-| 性能 | Token 截断与摘要异步化（可选）以降低首字延迟。 |
+| 类别   | 要求                                                                                   |
+| ------ | -------------------------------------------------------------------------------------- |
+| 可用性 | 与现有一致；图内节点失败可降级策略（尤其 RAG）。                                       |
+| 性能   | Token 截断与摘要异步化（可选）以降低首字延迟。                                         |
 | 可观测 | 统一 `thread_id`、`agent_id`、`agent_version` 打日志；关键节点耗时指标（实施后接入）。 |
-| 可测试 | AgentRuntime 单测覆盖：history 装配、摘要触发条件、mock LLM 流。 |
+| 可测试 | AgentRuntime 单测覆盖：history 装配、摘要触发条件、mock LLM 流。                       |
 
 ---
 
 ## 10. 风险与应对
 
-| 风险 | 影响 | 应对 |
-|------|------|------|
-| LangChain/LangGraph 版本与流式 API 变更 | 集成成本 | 锁定主版本；封装 `streamToSSE` 适配层。 |
-| 摘要质量与成本 | 费用与延迟 | 阈值 + 小模型摘要可选；异步更新 summary。 |
-| 前后端误用 `stream-test` | 误以为无记忆 | 文档与环境变量约定；本地开发可选用真实 stream。 |
-| 多实例无共享 MemorySaver | 数据不一致 | 生产不以 MemorySaver 为唯一持久化；依赖 DB 装载。 |
+| 风险                                    | 影响         | 应对                                              |
+| --------------------------------------- | ------------ | ------------------------------------------------- |
+| LangChain/LangGraph 版本与流式 API 变更 | 集成成本     | 锁定主版本；封装 `streamToSSE` 适配层。           |
+| 摘要质量与成本                          | 费用与延迟   | 阈值 + 小模型摘要可选；异步更新 summary。         |
+| 前后端误用 `stream-test`                | 误以为无记忆 | 文档与环境变量约定；本地开发可选用真实 stream。   |
+| 多实例无共享 MemorySaver                | 数据不一致   | 生产不以 MemorySaver 为唯一持久化；依赖 DB 装载。 |
 
 ---
 
 ## 11. 实施计划与里程碑
 
-| 阶段 | 交付物 | 验收要点 |
-|------|--------|----------|
-| P0 | AgentRuntime + LangGraph 单 LLM 线性图；DB 装载/写回；SSE 不变 | 同 thread 多轮语义连续；中断可用 |
-| P1 | Token 预算截断 + `threads.summary` 滚动摘要 | 长会话远期信息可通过摘要体现 |
-| P2 | `retrieve` 节点 + `rag_config` | 配置驱动检索；失败降级 |
-| P3 | MCP 客户端 + `mcp_tools` + `mcp_config` | allowlist 与超时；工具循环稳定 |
+| 阶段 | 交付物                                                         | 验收要点                         |
+| ---- | -------------------------------------------------------------- | -------------------------------- |
+| P0   | AgentRuntime + LangGraph 单 LLM 线性图；DB 装载/写回；SSE 不变 | 同 thread 多轮语义连续；中断可用 |
+| P1   | Token 预算截断 + `threads.summary` 滚动摘要                    | 长会话远期信息可通过摘要体现     |
+| P2   | `retrieve` 节点 + `rag_config`                                 | 配置驱动检索；失败降级           |
+| P3   | MCP 客户端 + `mcp_tools` + `mcp_config`                        | allowlist 与超时；工具循环稳定   |
 
 ---
 
@@ -279,15 +279,15 @@ flowchart TB
 
 ### 12.1 与本文档直接相关的代码路径（仅索引）
 
-- `apps/server/src/routes/chat.ts` — 流式聊天与消息持久化。  
-- `apps/server/src/config/schema.sql` — `threads`、`messages`、`agent_versions`。  
+- `apps/server/src/routes/chat.ts` — 流式聊天与消息持久化。
+- `apps/server/src/config/schema.sql` — `threads`、`messages`、`agent_versions`。
 - `apps/web/src/utils/api.ts` — SSE 请求路径与后端对齐说明。
 
 ### 12.2 文档修订记录
 
-| 版本 | 日期 | 修订说明 | 作者 |
-|------|------|----------|------|
-| v1.0 | 2026-04-02 | 初稿 | — |
+| 版本 | 日期       | 修订说明 | 作者 |
+| ---- | ---------- | -------- | ---- |
+| v1.0 | 2026-04-02 | 初稿     | —    |
 
 ---
 

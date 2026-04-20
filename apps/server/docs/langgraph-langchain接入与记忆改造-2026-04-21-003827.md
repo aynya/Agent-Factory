@@ -221,4 +221,3 @@ SSE 事件结构未变化，前端无需改事件解析逻辑。
 2. 执行中断操作，确认 SSE 流可被及时终止。
 3. 把 `CHAT_HISTORY_MAX_MESSAGES` 设为非法值（如 `abc`），确认服务不再抛 SQL 参数错误。
 4. 确认前端请求路径走 `/api/chat/stream`，而非 `/stream-test`。
-

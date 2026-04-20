@@ -3,7 +3,11 @@ import type { Request, Response } from 'express';
 import { query } from '../config/db.js';
 import { generateUUID } from '../utils/uuid.js';
 import { authenticateToken } from '../middleware/auth.js';
-import { saveAvatarFromBase64, deleteAvatarFile, isBase64Image } from '../utils/avatar.js';
+import {
+  saveAvatarFromBase64,
+  deleteAvatarFile,
+  isBase64Image,
+} from '../utils/avatar.js';
 import type {
   ApiResponse,
   AgentListItem,
@@ -68,7 +72,8 @@ router.get(
       const userId = (
         req as Request & { user: { user_id: string; username: string } }
       ).user.user_id;
-      const tag = typeof req.query.tag === 'string' ? req.query.tag.trim() : undefined;
+      const tag =
+        typeof req.query.tag === 'string' ? req.query.tag.trim() : undefined;
 
       if (tag !== undefined && tag !== '') {
         if (!VALID_TAGS.includes(tag as (typeof VALID_TAGS)[number])) {
@@ -256,10 +261,11 @@ router.delete(
         return;
       }
 
-      const rows = await query<{ id: string; creator_id: string | null; avatar: string | null }>(
-        'SELECT id, creator_id, avatar FROM agents WHERE id = ?',
-        [agentId]
-      );
+      const rows = await query<{
+        id: string;
+        creator_id: string | null;
+        avatar: string | null;
+      }>('SELECT id, creator_id, avatar FROM agents WHERE id = ?', [agentId]);
       if (rows.length === 0) {
         res.status(404).json({
           code: 404,
@@ -332,10 +338,13 @@ router.get(
         return;
       }
 
-      const agentRows = await query<{ id: string; creator_id: string | null; latest_version: number }>(
-        'SELECT id, creator_id, latest_version FROM agents WHERE id = ?',
-        [agentId]
-      );
+      const agentRows = await query<{
+        id: string;
+        creator_id: string | null;
+        latest_version: number;
+      }>('SELECT id, creator_id, latest_version FROM agents WHERE id = ?', [
+        agentId,
+      ]);
       if (agentRows.length === 0) {
         res.status(404).json({
           code: 404,
@@ -429,7 +438,10 @@ router.get(
 router.post(
   '/:agentId/threads',
   authenticateToken,
-  async (req: Request, res: Response<ApiResponse<CreateThreadByAgentResponse>>) => {
+  async (
+    req: Request,
+    res: Response<ApiResponse<CreateThreadByAgentResponse>>
+  ) => {
     try {
       const userId = (
         req as Request & { user: { user_id: string; username: string } }
@@ -565,7 +577,8 @@ router.get(
       }
 
       const config: AgentConfig = {
-        systemPrompt: typeof row.system_prompt === 'string' ? row.system_prompt : '',
+        systemPrompt:
+          typeof row.system_prompt === 'string' ? row.system_prompt : '',
         ragConfig: row.rag_config ?? null,
         mcpConfig: row.mcp_config ?? null,
       };
@@ -625,10 +638,13 @@ router.put(
 
       const updateData: UpdateAgentRequest = req.body;
 
-      const rows = await query<{ id: string; latest_version: number; creator_id: string | null }>(
-        'SELECT id, latest_version, creator_id FROM agents WHERE id = ?',
-        [agentId]
-      );
+      const rows = await query<{
+        id: string;
+        latest_version: number;
+        creator_id: string | null;
+      }>('SELECT id, latest_version, creator_id FROM agents WHERE id = ?', [
+        agentId,
+      ]);
 
       if (rows.length === 0) {
         res.status(404).json({
@@ -662,8 +678,7 @@ router.put(
       let mcpConfig: unknown = null;
       if (updateData.config != null && typeof updateData.config === 'object') {
         const c = updateData.config;
-        systemPrompt =
-          c.systemPrompt != null ? String(c.systemPrompt) : '';
+        systemPrompt = c.systemPrompt != null ? String(c.systemPrompt) : '';
         ragConfig = c.ragConfig ?? null;
         mcpConfig = c.mcpConfig ?? null;
       }
@@ -682,10 +697,10 @@ router.put(
         ]
       );
 
-      await query('UPDATE agents SET latest_version = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [
-        newVersion,
-        agentId,
-      ]);
+      await query(
+        'UPDATE agents SET latest_version = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+        [newVersion, agentId]
+      );
 
       // 将该 agent 的调试 thread 绑定到最新版本，便于调试始终使用最新配置
       await query(
@@ -720,8 +735,10 @@ router.get(
   authenticateToken,
   async (req: Request, res: Response<ApiResponse<AgentListItem[]>>) => {
     try {
-      const status = typeof req.query.status === 'string' ? req.query.status : undefined;
-      const tag = typeof req.query.tag === 'string' ? req.query.tag.trim() : undefined;
+      const status =
+        typeof req.query.status === 'string' ? req.query.status : undefined;
+      const tag =
+        typeof req.query.tag === 'string' ? req.query.tag.trim() : undefined;
 
       if (status !== 'public') {
         res.status(400).json({
@@ -756,7 +773,10 @@ router.get(
 
       sql += ' ORDER BY a.updated_at DESC';
 
-      const rows = await query<AgentListRow>(sql, params.length > 0 ? params : []);
+      const rows = await query<AgentListRow>(
+        sql,
+        params.length > 0 ? params : []
+      );
 
       res.json({
         code: 0,
