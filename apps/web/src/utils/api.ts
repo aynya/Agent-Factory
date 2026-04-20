@@ -200,7 +200,7 @@ export function createChatStream(
    */
   async function executeRequest(accessToken: string | null) {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/chat/stream-test`, {
+      const response = await fetch(`${API_BASE_URL}/api/chat/stream`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

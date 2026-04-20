@@ -1,9 +1,12 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
-import OpenAI from 'openai';
 import { query, getConnection } from '../config/db.js';
 import { generateUUID } from '../utils/uuid.js';
 import { authenticateToken } from '../middleware/auth.js';
+import {
+  chatAgentRuntime,
+  ChatRuntimeError,
+} from '../agent/runtime/chat-agent-runtime.js';
 import type {
   ChatStreamRequest,
   ChatAbortRequest,
@@ -14,12 +17,6 @@ import type {
 } from '@monorepo/types';
 
 const router: Router = Router();
-
-// 初始化 OpenAI 客户端
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || '',
-  baseURL: process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
-});
 
 // 存储正在进行的流式请求，用于中断功能
 const activeStreams = new Map<string, AbortController>();
@@ -65,7 +62,11 @@ router.post(
 
     try {
       // 1. 检查或创建 thread（新 thread 使用该 agent 的 latest_version 绑定）
-      const existingThreads = await query<{ id: string; agent_id: string; agent_version: number }>(
+      const existingThreads = await query<{
+        id: string;
+        agent_id: string;
+        agent_version: number;
+      }>(
         'SELECT id, agent_id, agent_version FROM threads WHERE id = ? AND user_id = ?',
         [thread_id, user.user_id]
       );
@@ -89,7 +90,13 @@ router.post(
         threadAgentVersion = verRows[0]!.latest_version;
         await query(
           'INSERT INTO threads (id, user_id, agent_id, agent_version, title) VALUES (?, ?, ?, ?, ?)',
-          [thread_id, user.user_id, agent_id, threadAgentVersion, content.substring(0, 255)]
+          [
+            thread_id,
+            user.user_id,
+            agent_id,
+            threadAgentVersion,
+            content.substring(0, 255),
+          ]
         );
       } else {
         const t = existingThreads[0]!;
@@ -98,7 +105,8 @@ router.post(
           res.write(
             `data: ${JSON.stringify({
               code: 400,
-              message: 'This thread is bound to another agent. Use a different thread or create a new one.',
+              message:
+                'This thread is bound to another agent. Use a different thread or create a new one.',
             })}\n\n`
           );
           res.end();
@@ -119,52 +127,11 @@ router.post(
         [userMessageId, thread_id, 'user', content, 0]
       );
 
-      // 3. 获取历史消息（用于构建上下文，不包括刚插入的用户消息）
-      const historyMessages = await query<{
-        role: 'user' | 'assistant';
-        content: string;
-      }>(
-        'SELECT role, content FROM messages WHERE thread_id = ? AND id != ? ORDER BY created_at ASC LIMIT 20',
-        [thread_id, userMessageId]
-      );
-
-      // 4. 从 thread 绑定的 agent_version 取 system_prompt
-      const versionRows = await query<{ system_prompt: string | null }>(
-        'SELECT system_prompt FROM agent_versions WHERE agent_id = ? AND version = ?',
-        [threadAgentId, threadAgentVersion]
-      );
-
-      if (versionRows.length === 0) {
-        res.write(`event: error\n`);
-        res.write(
-          `data: ${JSON.stringify({ code: 404, message: 'Agent version not found' })}\n\n`
-        );
-        res.end();
-        return;
-      }
-
-      const vRow = versionRows[0]!;
-      const systemPrompt =
-        (typeof vRow.system_prompt === 'string' ? vRow.system_prompt : null) ||
-        '你是一个有用的AI助手';
-
-      // 5. 构建 OpenAI 消息格式
-      const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-        { role: 'system', content: systemPrompt },
-        ...historyMessages.map(msg => ({
-          role: (msg.role === 'user' ? 'user' : 'assistant') as
-            | 'user'
-            | 'assistant',
-          content: msg.content,
-        })),
-        { role: 'user', content: content }, // 包含当前用户消息
-      ];
-
-      // 6. 生成 assistant 消息 ID
+      // 3. 生成 assistant 消息 ID
       const assistantMessageId = generateUUID();
       const createdAt = new Date().toISOString();
 
-      // 7. 发送 start 事件
+      // 4. 发送 start 事件
       res.write(`event: start\n`);
       res.write(
         `data: ${JSON.stringify({
@@ -174,48 +141,28 @@ router.post(
         })}\n\n`
       );
 
-      // 8. 调用 OpenAI API（流式）
-      const stream = await openai.chat.completions.create(
-        {
-          model: process.env.OPENAI_MODEL || 'gpt-3.5-turbo',
-          messages,
-          stream: true,
-          temperature: 0.7,
-        },
-        {
-          signal: abortController.signal,
-        }
-      );
-
       let fullContent = '';
       let totalTokens = 0;
 
-      // 9. 处理流式响应
-      for await (const chunk of stream) {
-        if (abortController.signal.aborted) {
-          break;
-        }
-
-        const delta = chunk.choices[0]?.delta?.content;
-        if (delta) {
-          fullContent += delta;
-          // 发送 token 事件
+      const runtimeResult = await chatAgentRuntime.streamAssistantReply({
+        threadId: thread_id,
+        agentId: threadAgentId,
+        agentVersion: threadAgentVersion,
+        abortSignal: abortController.signal,
+        onToken: token => {
+          fullContent += token;
           res.write(`event: token\n`);
           res.write(
             `data: ${JSON.stringify({
               messageId: assistantMessageId,
-              content: delta,
+              content: token,
             })}\n\n`
           );
-        }
+        },
+      });
+      totalTokens = runtimeResult.totalTokens;
 
-        // 记录 token 使用情况（通常在最后一个 chunk 中）
-        if (chunk.usage?.total_tokens) {
-          totalTokens = chunk.usage.total_tokens;
-        }
-      }
-
-      // 10. 保存 assistant 回复到数据库（包括中断的情况）
+      // 5. 保存 assistant 回复到数据库（包括中断的情况）
       if (fullContent) {
         const isAborted = abortController.signal.aborted;
 
@@ -224,7 +171,7 @@ router.post(
           [assistantMessageId, thread_id, 'assistant', fullContent, totalTokens]
         );
 
-        // 11. 发送 end 事件
+        // 6. 发送 end 事件
         res.write(`event: end\n`);
         res.write(
           `data: ${JSON.stringify({
@@ -247,11 +194,18 @@ router.post(
       }
 
       // 发送错误事件
+      const errorCode = error instanceof ChatRuntimeError ? error.code : 500;
+      const errorMessage =
+        error instanceof ChatRuntimeError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : '服务器内部错误';
       res.write(`event: error\n`);
       res.write(
         `data: ${JSON.stringify({
-          code: 500,
-          message: error instanceof Error ? error.message : '服务器内部错误',
+          code: errorCode,
+          message: errorMessage,
         })}\n\n`
       );
       res.end();
@@ -302,7 +256,11 @@ router.post(
 
     try {
       // 1. 检查或创建 thread（新 thread 绑定该 agent 的 latest_version）
-      const existingThreads = await query<{ id: string; agent_id: string; agent_version: number }>(
+      const existingThreads = await query<{
+        id: string;
+        agent_id: string;
+        agent_version: number;
+      }>(
         'SELECT id, agent_id, agent_version FROM threads WHERE id = ? AND user_id = ?',
         [thread_id, user.user_id]
       );
@@ -326,7 +284,13 @@ router.post(
         threadAgentVersion = verRows[0]!.latest_version;
         await query(
           'INSERT INTO threads (id, user_id, agent_id, agent_version, title) VALUES (?, ?, ?, ?, ?)',
-          [thread_id, user.user_id, agent_id, threadAgentVersion, content.substring(0, 255)]
+          [
+            thread_id,
+            user.user_id,
+            agent_id,
+            threadAgentVersion,
+            content.substring(0, 255),
+          ]
         );
       } else {
         const t = existingThreads[0]!;
@@ -335,7 +299,8 @@ router.post(
           res.write(
             `data: ${JSON.stringify({
               code: 400,
-              message: 'This thread is bound to another agent. Use a different thread or create a new one.',
+              message:
+                'This thread is bound to another agent. Use a different thread or create a new one.',
             })}\n\n`
           );
           res.end();
