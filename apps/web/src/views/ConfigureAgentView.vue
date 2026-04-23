@@ -183,6 +183,31 @@
               </div>
             </section>
 
+            <!-- 模块：MCP -->
+            <section class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
+              <div class="flex items-center gap-4 mb-4">
+                <div
+                  class="w-8 h-8 bg-violet-50 rounded-lg flex items-center justify-center text-violet-600"
+                >
+                  <el-icon :size="14">
+                    <Tools />
+                  </el-icon>
+                </div>
+                <h4 class="text-sm font-bold text-slate-800">MCP 配置</h4>
+              </div>
+              <div class="space-y-1.5">
+                <p class="text-[10px] text-slate-500 leading-relaxed ml-1">
+                  粘贴 JSON（含 <code class="text-violet-600">mcpServers</code>）。留空表示不启用
+                  MCP。发布后与当前版本一起保存。
+                </p>
+                <textarea
+                  v-model="mcpConfigText"
+                  :placeholder="mcpJsonPlaceholder"
+                  class="w-full h-64 min-h-64 max-h-64 overflow-y-auto bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-slate-900 font-mono text-xs focus:bg-white focus:ring-4 focus:ring-violet-50/50 focus:border-violet-200 transition-all outline-none resize-none leading-relaxed"
+                />
+              </div>
+            </section>
+
             <!-- 模块：分类与标签（只读展示） -->
             <section class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
               <div class="flex items-center gap-4 mb-4">
@@ -302,7 +327,7 @@ import {
   PriceTag,
   Tools,
 } from '@element-plus/icons-vue'
-import type { UpdateAgentRequest } from '@monorepo/types'
+import type { UpdateAgentRequest, AgentMcpConfig } from '@monorepo/types'
 import { getAgentDetail, updateAgent, getAgentDebugThread } from '@/utils/api'
 import { useChatStore } from '@/stores/chat'
 import { getAvatarUrl } from '@/utils/avatar'
@@ -322,6 +347,8 @@ const loading = ref(true)
 const name = ref('')
 const description = ref('')
 const systemPrompt = ref('')
+/** 编辑器内为 JSON 字符串；提交时解析为对象写入 config.mcpConfig */
+const mcpConfigText = ref('')
 const tag = ref<string | null>(null)
 const avatar = ref<string | null>(null)
 const version = ref(1)
@@ -335,6 +362,72 @@ const agentCategories = [
 ]
 
 const suggestions = ['简单介绍下自己', '测试边界条件', '角色扮演测试']
+
+const mcpJsonPlaceholder = `{
+  "mcpServers": {
+    "amap": {
+      "url": "https://example.com/mcp/amap",
+      "headers": {
+        "X-API-KEY": "your-key"
+      }
+    }
+  }
+}`
+
+/** 服务端已规范为对象；保留 string 以防旧数据或缓存 */
+function formatMcpConfigForEditor(mc: AgentMcpConfig | string | null | undefined): string {
+  if (mc == null) return ''
+  if (typeof mc === 'string') {
+    const t = mc.trim()
+    if (!t) return ''
+    try {
+      return JSON.stringify(JSON.parse(t), null, 2)
+    } catch {
+      return mc
+    }
+  }
+  try {
+    return JSON.stringify(mc, null, 2)
+  } catch {
+    return ''
+  }
+}
+
+function parseMcpConfigForSubmit(text: string): AgentMcpConfig | null {
+  const trimmed = text.trim()
+  if (!trimmed) return null
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(trimmed) as unknown
+  } catch {
+    throw new Error('MCP 配置不是合法 JSON')
+  }
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('MCP 配置须为 JSON 对象')
+  }
+  const o = parsed as Record<string, unknown>
+  if (o.mcpServers != null) {
+    if (typeof o.mcpServers !== 'object' || o.mcpServers === null || Array.isArray(o.mcpServers)) {
+      throw new Error('mcpServers 须为对象')
+    }
+    const servers = o.mcpServers as Record<string, unknown>
+    let hasUrl = false
+    for (const val of Object.values(servers)) {
+      if (val && typeof val === 'object' && !Array.isArray(val)) {
+        const u = (val as { url?: unknown }).url
+        if (typeof u === 'string' && u.trim()) hasUrl = true
+      }
+    }
+    if (!hasUrl) {
+      throw new Error('mcpServers 中至少需要一个带 url 的条目')
+    }
+    return parsed as AgentMcpConfig
+  }
+  if (typeof o.url === 'string' && o.url.trim()) {
+    return parsed as AgentMcpConfig
+  }
+  throw new Error('请使用 { mcpServers: { ... } } 或 { "url": "...", "headers"? } 格式')
+}
 
 const debugMessagesContainer = ref<HTMLElement | null>(null)
 const debugThreadId = ref<string | null>(null)
@@ -351,7 +444,7 @@ const { showScrollButton, scrollToBottom, handleScroll } = useAutoScroll(debugMe
 
 const tagLabel = computed(() => {
   if (!tag.value) return '未设置'
-  const found = agentCategories.find(c => c.id === tag.value)
+  const found = agentCategories.find((c) => c.id === tag.value)
   return found ? found.label : tag.value
 })
 
@@ -387,6 +480,7 @@ async function loadAgentDetail(): Promise<boolean> {
       name.value = agent.name
       description.value = agent.description || ''
       systemPrompt.value = agent.config.systemPrompt || ''
+      mcpConfigText.value = formatMcpConfigForEditor(agent.config.mcpConfig)
       tag.value = agent.tag
       avatar.value = agent.avatar
       version.value = agent.version
@@ -448,6 +542,14 @@ async function handleSubmit() {
     return
   }
 
+  let mcpParsed: AgentMcpConfig | null = null
+  try {
+    mcpParsed = parseMcpConfigForSubmit(mcpConfigText.value)
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : 'MCP 配置无效')
+    return
+  }
+
   try {
     submitting.value = true
     // 配置页仅允许修改：简短描述、系统提示词；头像、名称、标签只读，不提交
@@ -456,7 +558,7 @@ async function handleSubmit() {
       config: {
         systemPrompt: systemPrompt.value,
         ragConfig: null,
-        mcpConfig: null,
+        mcpConfig: mcpParsed,
       },
     }
 
@@ -467,7 +569,7 @@ async function handleSubmit() {
     const result = await updateAgent(agentId.value, updateData)
     if (result.code === 0) {
       ElMessage.success('更新成功')
-      router.back()
+      await loadAgentDetail()
     } else {
       ElMessage.error(result.message || '更新失败')
     }

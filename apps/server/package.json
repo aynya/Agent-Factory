@@ -44,6 +44,7 @@
     "jsonwebtoken": "^9.0.3",
     "markdown-it": "^14.1.0",
     "mysql2": "^3.16.0",
-    "openai": "^6.15.0"
+    "openai": "^6.15.0",
+    "zod": "^4.3.6"
   }
 }

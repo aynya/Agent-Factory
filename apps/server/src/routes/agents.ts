@@ -15,6 +15,7 @@ import type {
   CreateAgentResponse,
   AgentDetail,
   AgentConfig,
+  AgentMcpConfig,
   UpdateAgentRequest,
   UpdateAgentResponse,
   DebugThread,
@@ -22,6 +23,23 @@ import type {
 } from '@monorepo/types';
 
 const router: Router = Router();
+
+function parseStoredMcpConfig(raw: unknown): AgentMcpConfig | null {
+  if (raw == null) return null;
+  if (typeof raw === 'string') {
+    const t = raw.trim();
+    if (!t) return null;
+    try {
+      return JSON.parse(t) as AgentMcpConfig;
+    } catch {
+      return null;
+    }
+  }
+  if (typeof raw === 'object' && !Array.isArray(raw)) {
+    return raw as AgentMcpConfig;
+  }
+  return null;
+}
 
 const VALID_TAGS = [
   'assistant',
@@ -580,7 +598,7 @@ router.get(
         systemPrompt:
           typeof row.system_prompt === 'string' ? row.system_prompt : '',
         ragConfig: row.rag_config ?? null,
-        mcpConfig: row.mcp_config ?? null,
+        mcpConfig: parseStoredMcpConfig(row.mcp_config),
       };
 
       const agentDetail: AgentDetail = {
@@ -675,7 +693,7 @@ router.put(
 
       let systemPrompt = '';
       let ragConfig: unknown = null;
-      let mcpConfig: unknown = null;
+      let mcpConfig: AgentMcpConfig | null = null;
       if (updateData.config != null && typeof updateData.config === 'object') {
         const c = updateData.config;
         systemPrompt = c.systemPrompt != null ? String(c.systemPrompt) : '';

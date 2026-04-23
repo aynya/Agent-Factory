@@ -230,11 +230,38 @@ export interface CreateAgentResponse {
   latestVersion: number;
 }
 
+/**
+ * 单个 MCP 服务（对应 JSON 里 mcpServers 的 value）
+ * Content-Type / Accept 由后端写死，不应在此重复配置。
+ */
+export interface AgentMcpServerEntry {
+  url: string;
+  headers?: Record<string, string>;
+}
+
+/**
+ * 推荐形态：与 Cursor / Claude 等常见的 mcpServers 结构一致
+ */
+export interface AgentMcpServersConfig {
+  mcpServers: Record<string, AgentMcpServerEntry>;
+}
+
+/**
+ * 兼容旧版：仅单个 endpoint
+ */
+export interface AgentMcpLegacyUrlConfig {
+  url: string;
+  headers?: Record<string, string>;
+}
+
+/** 存入 agent_versions.mcp_config（解析后）的配置对象 */
+export type AgentMcpConfig = AgentMcpServersConfig | AgentMcpLegacyUrlConfig;
+
 // Agent 配置类型
 export interface AgentConfig {
   systemPrompt: string;
   ragConfig: unknown | null;
-  mcpConfig: unknown | null;
+  mcpConfig: AgentMcpConfig | null;
 }
 
 // Agent 详情（包含「当前最新版本」的配置）
