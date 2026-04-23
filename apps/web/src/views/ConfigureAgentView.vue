@@ -444,7 +444,7 @@ const { showScrollButton, scrollToBottom, handleScroll } = useAutoScroll(debugMe
 
 const tagLabel = computed(() => {
   if (!tag.value) return '未设置'
-  const found = agentCategories.find((c) => c.id === tag.value)
+  const found = agentCategories.find(c => c.id === tag.value)
   return found ? found.label : tag.value
 })
 
