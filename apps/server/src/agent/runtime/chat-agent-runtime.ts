@@ -1,5 +1,6 @@
+import { createHash } from 'node:crypto';
 import { Annotation, END, START, StateGraph } from '@langchain/langgraph';
-import { ChatOpenAI } from '@langchain/openai';
+import { ChatOpenAI, OpenAIEmbeddings } from '@langchain/openai';
 import { tool } from '@langchain/core/tools';
 import {
   AIMessage,
@@ -8,8 +9,15 @@ import {
   ToolMessage,
   type BaseMessage,
 } from '@langchain/core/messages';
+import { MemoryVectorStore } from '@langchain/classic/vectorstores/memory';
+import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
 import { z } from 'zod';
+import type { AgentRagConfig } from '@monorepo/types';
 import { query } from '../../config/db.js';
+import {
+  extractTextFromRagFile,
+  resolveRagDocumentAbsolutePath,
+} from '../../utils/rag-document.js';
 
 const DEFAULT_SYSTEM_PROMPT = '你是一个有用的AI助手';
 
@@ -21,6 +29,26 @@ function resolveHistoryLimit(): number {
 }
 
 const MAX_HISTORY_MESSAGES = resolveHistoryLimit();
+
+/**
+ * RAG 向量模型：与对话模型一样走 OPENAI_BASE_URL。
+ * 火山方舟等兼容网关没有 OpenAI 默认的 text-embedding-3-small，需用控制台里的 Embedding 模型 ID
+ *（如 doubao-embedding-text-240715）。仍可通过 RAG_EMBEDDING_MODEL / OPENAI_EMBEDDING_MODEL 覆盖。
+ */
+function resolveDefaultRagEmbeddingModel(): string {
+  const fromEnv =
+    process.env.RAG_EMBEDDING_MODEL?.trim() ||
+    process.env.OPENAI_EMBEDDING_MODEL?.trim();
+  if (fromEnv) return fromEnv;
+
+  const base = (process.env.OPENAI_BASE_URL || '').toLowerCase();
+  if (base.includes('volces.com') || base.includes('volcengine')) {
+    return (
+      process.env.ARK_EMBEDDING_MODEL?.trim() || 'doubao-embedding-text-240715'
+    );
+  }
+  return 'text-embedding-3-small';
+}
 
 type JsonLike = Record<string, unknown> | unknown[] | string | number | boolean;
 
@@ -215,6 +243,209 @@ function parseMcpEndpoints(raw: JsonLike | null): McpEndpoint[] {
   return [];
 }
 
+const ragVectorStorePromises = new Map<string, Promise<MemoryVectorStore>>();
+
+function parseRagConfigRaw(raw: JsonLike | null): AgentRagConfig | null {
+  if (raw == null) return null;
+  let obj: unknown = raw;
+  if (typeof raw === 'string') {
+    const t = raw.trim();
+    if (!t) return null;
+    try {
+      obj = JSON.parse(t) as unknown;
+    } catch {
+      return { text: t };
+    }
+  }
+  if (typeof obj !== 'object' || obj === null || Array.isArray(obj))
+    return null;
+  const r = obj as Record<string, unknown>;
+  const text = typeof r.text === 'string' ? r.text : undefined;
+  const sourceUrl =
+    typeof r.sourceUrl === 'string' ? r.sourceUrl.trim() : undefined;
+  const documentUrl =
+    typeof r.documentUrl === 'string' ? r.documentUrl.trim() : undefined;
+  if (!text?.trim() && !sourceUrl && !documentUrl) return null;
+  const out: AgentRagConfig = {};
+  const textTrimmed = text?.trim();
+  if (textTrimmed) out.text = textTrimmed;
+  if (sourceUrl) out.sourceUrl = sourceUrl;
+  if (documentUrl) out.documentUrl = documentUrl;
+  if (typeof r.toolDescription === 'string' && r.toolDescription.trim()) {
+    out.toolDescription = r.toolDescription.trim();
+  }
+  if (typeof r.embeddingModel === 'string' && r.embeddingModel.trim()) {
+    out.embeddingModel = r.embeddingModel.trim();
+  }
+  const topKRaw = r.topK;
+  if (typeof topKRaw === 'number' && Number.isFinite(topKRaw) && topKRaw > 0) {
+    out.topK = Math.min(Math.floor(topKRaw), 20);
+  }
+  if (typeof r.chunkSize === 'number' && r.chunkSize > 0) {
+    out.chunkSize = r.chunkSize;
+  }
+  if (typeof r.chunkOverlap === 'number' && r.chunkOverlap >= 0) {
+    out.chunkOverlap = r.chunkOverlap;
+  }
+  return out;
+}
+
+async function resolveRagCorpusText(
+  agentId: string,
+  cfg: AgentRagConfig
+): Promise<string> {
+  const parts: string[] = [];
+
+  if (cfg.documentUrl?.trim()) {
+    const abs = resolveRagDocumentAbsolutePath(agentId, cfg.documentUrl.trim());
+    if (!abs) {
+      throw new Error('RAG documentUrl 无效或与智能体不匹配');
+    }
+    const { existsSync } = await import('node:fs');
+    if (!existsSync(abs)) {
+      throw new Error('RAG 文档不存在，请重新上传');
+    }
+    console.log('[RAG] 解析已上传文档', { agentId, file: abs });
+    const docText = (await extractTextFromRagFile(abs)).trim();
+    if (docText) parts.push(docText);
+  }
+
+  const inline = cfg.text?.trim() ?? '';
+  if (inline) parts.push(inline);
+
+  if (cfg.sourceUrl?.trim()) {
+    const url = cfg.sourceUrl.trim();
+    const u = new URL(url);
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') {
+      throw new Error('RAG sourceUrl 仅支持 http/https');
+    }
+    console.log('[RAG] 拉取 sourceUrl', url);
+    const res = await fetch(url, {
+      signal: AbortSignal.timeout(120_000),
+      headers: { Accept: 'text/plain,text/html,*/*' },
+    });
+    if (!res.ok) {
+      throw new Error(`RAG 拉取失败 HTTP ${res.status}`);
+    }
+    parts.push(await res.text());
+  }
+
+  return parts.join('\n\n');
+}
+
+async function getOrBuildRagVectorStore(
+  cacheKey: string,
+  text: string,
+  embeddingModel: string,
+  chunkSize: number,
+  chunkOverlap: number
+): Promise<MemoryVectorStore> {
+  let pending = ragVectorStorePromises.get(cacheKey);
+  if (pending) return pending;
+
+  pending = (async () => {
+    const embeddings = new OpenAIEmbeddings({
+      model: embeddingModel,
+      apiKey: process.env.OPENAI_API_KEY || '',
+      configuration: {
+        baseURL: process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
+      },
+    });
+    const splitter = new RecursiveCharacterTextSplitter({
+      chunkSize,
+      chunkOverlap,
+    });
+    const docs = await splitter.createDocuments([text]);
+    console.log('[RAG] 向量索引构建', {
+      cacheKey: cacheKey.slice(0, 48),
+      chunks: docs.length,
+      embeddingModel,
+    });
+    return MemoryVectorStore.fromDocuments(docs, embeddings);
+  })();
+
+  ragVectorStorePromises.set(cacheKey, pending);
+  return pending;
+}
+
+async function createRagTools(
+  agentId: string,
+  agentVersion: number,
+  ragRaw: JsonLike | null
+): Promise<RuntimeTool[]> {
+  const cfg = parseRagConfigRaw(ragRaw);
+  if (!cfg) return [];
+
+  try {
+    const resolvedText = await resolveRagCorpusText(agentId, cfg);
+    if (!resolvedText.trim()) {
+      console.warn('[RAG] 知识库正文为空，跳过工具');
+      return [];
+    }
+
+    const chunkSize = cfg.chunkSize ?? 500;
+    const chunkOverlap = cfg.chunkOverlap ?? 50;
+    const topK = cfg.topK ?? 4;
+    const embeddingModel =
+      cfg.embeddingModel?.trim() || resolveDefaultRagEmbeddingModel();
+
+    const contentHash = createHash('sha256')
+      .update(resolvedText)
+      .digest('hex')
+      .slice(0, 32);
+    const cacheKey = `${agentId}\0${agentVersion}\0${contentHash}\0${embeddingModel}\0${chunkSize}\0${chunkOverlap}`;
+
+    const vectorStore = await getOrBuildRagVectorStore(
+      cacheKey,
+      resolvedText,
+      embeddingModel,
+      chunkSize,
+      chunkOverlap
+    );
+
+    const description =
+      cfg.toolDescription?.trim() ||
+      '当用户问题可能涉及本智能体配置的知识库文档时，使用此工具按语义检索相关片段后再回答。';
+
+    const searchTool = tool(
+      async ({ query }: { query: string }) => {
+        console.log('[RAG] search_knowledge_base 查询', {
+          queryPreview: query.slice(0, 200),
+          topK,
+        });
+        const results = await vectorStore.similaritySearch(query, topK);
+        if (results.length === 0) {
+          console.log('[RAG] 检索无命中');
+          return '知识库中未找到相关信息。';
+        }
+        const out = results.map(d => d.pageContent).join('\n---\n');
+        console.log('[RAG] 检索命中', {
+          count: results.length,
+          preview: out.slice(0, 400),
+        });
+        return out;
+      },
+      {
+        name: 'search_knowledge_base',
+        description,
+        schema: z.object({
+          query: z.string().describe('搜索关键词或自然语言问题'),
+        }),
+      }
+    );
+
+    console.log('[RAG] 已绑定工具 search_knowledge_base', {
+      agentId,
+      agentVersion,
+      corpusChars: resolvedText.length,
+    });
+    return [searchTool as unknown as RuntimeTool];
+  } catch (error) {
+    console.error('[RAG] 初始化失败', error);
+    return [];
+  }
+}
+
 function contentToText(content: unknown): string {
   if (typeof content === 'string') return content;
   if (!Array.isArray(content)) return '';
@@ -356,27 +587,34 @@ async function createMcpTools(endpoint: McpEndpoint): Promise<RuntimeTool[]> {
 }
 
 async function resolveRuntimeTools(
-  _ragConfig: JsonLike | null,
+  agentId: string,
+  agentVersion: number,
+  ragConfigRaw: JsonLike | null,
   mcpConfigRaw: JsonLike | null
 ): Promise<RuntimeTool[]> {
+  const tools: RuntimeTool[] = [];
+
+  const ragTools = await createRagTools(agentId, agentVersion, ragConfigRaw);
+  tools.push(...ragTools);
+
   const endpoints = parseMcpEndpoints(mcpConfigRaw);
   if (endpoints.length === 0) {
-    console.log('[ChatRuntime] MCP：无可用 endpoint，跳过工具加载');
-    return [];
+    console.log('[ChatRuntime] MCP：无可用 endpoint，跳过 MCP 工具');
+  } else {
+    console.log('[ChatRuntime] MCP：解析到 endpoint', {
+      count: endpoints.length,
+      servers: endpoints.map(e => ({
+        key: e.serverKey,
+        url: e.url,
+        headerKeys: Object.keys(e.extraHeaders),
+      })),
+    });
+    for (const ep of endpoints) {
+      tools.push(...(await createMcpTools(ep)));
+    }
   }
-  console.log('[ChatRuntime] MCP：解析到 endpoint', {
-    count: endpoints.length,
-    servers: endpoints.map(e => ({
-      key: e.serverKey,
-      url: e.url,
-      headerKeys: Object.keys(e.extraHeaders),
-    })),
-  });
-  const tools: RuntimeTool[] = [];
-  for (const ep of endpoints) {
-    tools.push(...(await createMcpTools(ep)));
-  }
-  console.log('[ChatRuntime] MCP：本轮共绑定 LangChain 工具', tools.length, {
+
+  console.log('[ChatRuntime] 本轮共绑定工具', tools.length, {
     names: tools.map(t => t.name),
   });
   return tools;
@@ -415,7 +653,12 @@ async function loadContext(
   const version = versionRows[0]!;
   const ragConfig = parseMaybeJson(version.rag_config);
   const mcpConfig = parseMaybeJson(version.mcp_config);
-  const runtimeTools = await resolveRuntimeTools(ragConfig, mcpConfig);
+  const runtimeTools = await resolveRuntimeTools(
+    state.agentId,
+    state.agentVersion,
+    ragConfig,
+    mcpConfig
+  );
 
   const systemBlocks = [
     (typeof version.system_prompt === 'string' &&
@@ -425,12 +668,14 @@ async function loadContext(
   if (summary && summary.trim()) {
     systemBlocks.push(`历史摘要：\n${summary.trim()}`);
   }
-  if (ragConfig) {
+  const hasRagTool = runtimeTools.some(t => t.name === 'search_knowledge_base');
+  const hasMcpTool = runtimeTools.some(t => t.name !== 'search_knowledge_base');
+  if (hasRagTool) {
     systemBlocks.push(
-      '注意：该 Agent 未来会支持 RAG（上传文件），当前版本暂未启用。'
+      '已启用知识库检索：需要时请调用 search_knowledge_base 工具，结合返回片段回答用户。'
     );
   }
-  if (runtimeTools.length > 0) {
+  if (hasMcpTool) {
     systemBlocks.push('已启用 MCP：可在对话中按需调用配置的远程工具。');
   }
 

@@ -1,8 +1,15 @@
+import path from 'node:path';
+import fs from 'node:fs';
+import multer from 'multer';
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { query } from '../config/db.js';
 import { generateUUID } from '../utils/uuid.js';
 import { authenticateToken } from '../middleware/auth.js';
+import {
+  RAG_ALLOWED_EXTENSIONS,
+  RAG_UPLOADS_ROOT,
+} from '../utils/rag-document.js';
 import {
   saveAvatarFromBase64,
   deleteAvatarFile,
@@ -16,13 +23,44 @@ import type {
   AgentDetail,
   AgentConfig,
   AgentMcpConfig,
+  AgentRagConfig,
   UpdateAgentRequest,
   UpdateAgentResponse,
   DebugThread,
   CreateThreadByAgentResponse,
+  UploadRagDocumentResponse,
 } from '@monorepo/types';
 
 const router: Router = Router();
+
+const ragDocumentUpload = multer({
+  storage: multer.diskStorage({
+    destination(req, _file, cb) {
+      const agentId = req.params.agentId?.trim();
+      if (!agentId) {
+        cb(new Error('agentId 无效'), '');
+        return;
+      }
+      const dir = path.join(RAG_UPLOADS_ROOT, agentId);
+      fs.mkdirSync(dir, { recursive: true });
+      cb(null, dir);
+    },
+    filename(_req, file, cb) {
+      const ext = path.extname(file.originalname).toLowerCase();
+      const safeExt = RAG_ALLOWED_EXTENSIONS.has(ext) ? ext : '.txt';
+      cb(null, `${generateUUID()}${safeExt}`);
+    },
+  }),
+  limits: { fileSize: 15 * 1024 * 1024 },
+  fileFilter(_req, file, cb) {
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (!RAG_ALLOWED_EXTENSIONS.has(ext)) {
+      cb(new Error('不支持的文件类型（支持 txt、md、pdf、html、csv、json）'));
+      return;
+    }
+    cb(null, true);
+  },
+});
 
 function parseStoredMcpConfig(raw: unknown): AgentMcpConfig | null {
   if (raw == null) return null;
@@ -37,6 +75,23 @@ function parseStoredMcpConfig(raw: unknown): AgentMcpConfig | null {
   }
   if (typeof raw === 'object' && !Array.isArray(raw)) {
     return raw as AgentMcpConfig;
+  }
+  return null;
+}
+
+function parseStoredRagConfig(raw: unknown): AgentRagConfig | null {
+  if (raw == null) return null;
+  if (typeof raw === 'string') {
+    const t = raw.trim();
+    if (!t) return null;
+    try {
+      return JSON.parse(t) as AgentRagConfig;
+    } catch {
+      return { text: t };
+    }
+  }
+  if (typeof raw === 'object' && !Array.isArray(raw)) {
+    return raw as AgentRagConfig;
   }
   return null;
 }
@@ -597,7 +652,7 @@ router.get(
       const config: AgentConfig = {
         systemPrompt:
           typeof row.system_prompt === 'string' ? row.system_prompt : '',
-        ragConfig: row.rag_config ?? null,
+        ragConfig: parseStoredRagConfig(row.rag_config),
         mcpConfig: parseStoredMcpConfig(row.mcp_config),
       };
 
@@ -621,6 +676,93 @@ router.get(
       });
     } catch (error) {
       console.error('Get agent detail error:', error);
+      res.status(500).json({
+        code: 5000,
+        message: 'Internal server error',
+        data: null,
+      });
+    }
+  }
+);
+
+/**
+ * 上传 RAG 知识库文档（仅创建者）
+ * POST /api/agents/:agentId/rag-document
+ * multipart 字段名：document
+ */
+router.post(
+  '/:agentId/rag-document',
+  authenticateToken,
+  (req: Request, res: Response, next) => {
+    ragDocumentUpload.single('document')(req, res, (err: unknown) => {
+      if (err) {
+        res.status(400).json({
+          code: 400,
+          message: err instanceof Error ? err.message : '上传失败',
+          data: null,
+        });
+        return;
+      }
+      next();
+    });
+  },
+  async (
+    req: Request,
+    res: Response<ApiResponse<UploadRagDocumentResponse>>
+  ) => {
+    try {
+      const userId = (
+        req as Request & { user: { user_id: string; username: string } }
+      ).user.user_id;
+      const agentId = req.params.agentId?.trim();
+      if (!agentId) {
+        res.status(400).json({
+          code: 4001,
+          message: 'agentId is required',
+          data: null,
+        });
+        return;
+      }
+
+      const rows = await query<{ creator_id: string | null }>(
+        'SELECT creator_id FROM agents WHERE id = ?',
+        [agentId]
+      );
+      if (rows.length === 0) {
+        res.status(404).json({
+          code: 404,
+          message: 'agent not found',
+          data: null,
+        });
+        return;
+      }
+      if (rows[0]!.creator_id !== userId) {
+        res.status(403).json({
+          code: 403,
+          message: 'forbidden',
+          data: null,
+        });
+        return;
+      }
+
+      const file = (req as Request & { file?: { filename: string } }).file;
+      if (!file) {
+        res.status(400).json({
+          code: 400,
+          message: '请选择要上传的文档',
+          data: null,
+        });
+        return;
+      }
+
+      const documentUrl = `/uploads/rag/${agentId}/${file.filename}`;
+      res.json({
+        code: 0,
+        message: 'ok',
+        data: { documentUrl },
+      });
+    } catch (error) {
+      console.error('RAG document upload error:', error);
       res.status(500).json({
         code: 5000,
         message: 'Internal server error',
@@ -692,7 +834,7 @@ router.put(
           : null;
 
       let systemPrompt = '';
-      let ragConfig: unknown = null;
+      let ragConfig: AgentRagConfig | null = null;
       let mcpConfig: AgentMcpConfig | null = null;
       if (updateData.config != null && typeof updateData.config === 'object') {
         const c = updateData.config;

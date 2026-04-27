@@ -183,6 +183,62 @@
               </div>
             </section>
 
+            <!-- 模块：RAG 知识库（仅上传文档，解析与向量化由服务端完成） -->
+            <section class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
+              <div class="flex items-center gap-4 mb-4">
+                <div
+                  class="w-8 h-8 bg-emerald-50 rounded-lg flex items-center justify-center text-emerald-600"
+                >
+                  <el-icon :size="14">
+                    <Collection />
+                  </el-icon>
+                </div>
+                <h4 class="text-sm font-bold text-slate-800">RAG 知识库</h4>
+              </div>
+              <div class="space-y-3">
+                <p class="text-[10px] text-slate-500 leading-relaxed ml-1">
+                  上传 txt、md、pdf、html、csv、json（单文件 ≤15MB）。保存后对话中可通过
+                  <code class="text-emerald-600">search_knowledge_base</code>
+                  检索。清除表示本版本不再挂载知识库。
+                </p>
+                <div class="flex flex-wrap items-center gap-2">
+                  <el-upload
+                    :disabled="ragUploading || !agentId"
+                    :http-request="handleRagUpload"
+                    :show-file-list="false"
+                    accept=".txt,.md,.markdown,.pdf,.html,.htm,.csv,.json"
+                  >
+                    <el-button type="primary" plain size="small" :loading="ragUploading">
+                      上传文档
+                    </el-button>
+                  </el-upload>
+                  <el-button
+                    v-if="ragDocumentUrl"
+                    type="danger"
+                    plain
+                    size="small"
+                    :disabled="ragUploading"
+                    @click="clearRagDocument"
+                  >
+                    清除知识库
+                  </el-button>
+                </div>
+                <p v-if="ragDocumentUrl" class="text-[11px] text-slate-600 break-all ml-1">
+                  当前文档：
+                  <a
+                    :href="ragDocumentFileHref"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="text-emerald-600 hover:underline font-mono"
+                  >
+                    {{ ragDocumentDisplayName }}
+                  </a>
+                  <span class="text-slate-400">（发布后生效）</span>
+                </p>
+                <p v-else class="text-[11px] text-slate-400 ml-1">当前未挂载知识库文档</p>
+              </div>
+            </section>
+
             <!-- 模块：MCP -->
             <section class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
               <div class="flex items-center gap-4 mb-4">
@@ -326,9 +382,12 @@ import {
   InfoFilled,
   PriceTag,
   Tools,
+  Collection,
 } from '@element-plus/icons-vue'
-import type { UpdateAgentRequest, AgentMcpConfig } from '@monorepo/types'
-import { getAgentDetail, updateAgent, getAgentDebugThread } from '@/utils/api'
+import type { UpdateAgentRequest, AgentMcpConfig, AgentRagConfig } from '@monorepo/types'
+import type { UploadRequestOptions } from 'element-plus'
+import { UploadAjaxError } from 'element-plus/es/components/upload/src/ajax'
+import { getAgentDetail, updateAgent, getAgentDebugThread, uploadRagDocument } from '@/utils/api'
 import { useChatStore } from '@/stores/chat'
 import { getAvatarUrl } from '@/utils/avatar'
 import { formatVersion } from '@/utils/version'
@@ -341,6 +400,8 @@ const route = useRoute()
 const router = useRouter()
 const chatStore = useChatStore()
 
+const apiBaseUrl = 'http://localhost:3000'
+
 const submitting = ref(false)
 const loading = ref(true)
 
@@ -349,6 +410,9 @@ const description = ref('')
 const systemPrompt = ref('')
 /** 编辑器内为 JSON 字符串；提交时解析为对象写入 config.mcpConfig */
 const mcpConfigText = ref('')
+/** 上传后得到的 documentUrl；提交时写入 config.ragConfig；空表示不启用 */
+const ragDocumentUrl = ref<string | null>(null)
+const ragUploading = ref(false)
 const tag = ref<string | null>(null)
 const avatar = ref<string | null>(null)
 const version = ref(1)
@@ -373,6 +437,22 @@ const mcpJsonPlaceholder = `{
     }
   }
 }`
+
+function ragDocumentUrlFromConfig(rc: AgentRagConfig | string | null | undefined): string | null {
+  if (rc == null) return null
+  if (typeof rc === 'string') {
+    const t = rc.trim()
+    if (!t) return null
+    try {
+      const o = JSON.parse(t) as { documentUrl?: unknown }
+      return typeof o.documentUrl === 'string' && o.documentUrl.trim() ? o.documentUrl.trim() : null
+    } catch {
+      return null
+    }
+  }
+  const u = rc.documentUrl?.trim()
+  return u || null
+}
 
 /** 服务端已规范为对象；保留 string 以防旧数据或缓存 */
 function formatMcpConfigForEditor(mc: AgentMcpConfig | string | null | undefined): string {
@@ -451,6 +531,16 @@ const tagLabel = computed(() => {
 /** 发布后将更新到的版本号（当前版本 + 1） */
 const nextVersion = computed(() => version.value + 1)
 
+const ragDocumentFileHref = computed(() =>
+  ragDocumentUrl.value ? `${apiBaseUrl}${ragDocumentUrl.value}` : ''
+)
+
+const ragDocumentDisplayName = computed(() => {
+  if (!ragDocumentUrl.value) return ''
+  const parts = ragDocumentUrl.value.split('/')
+  return parts[parts.length - 1] || ragDocumentUrl.value
+})
+
 const agentId = computed(() => {
   const id = route.params.agentId
   return typeof id === 'string' && id ? id : null
@@ -480,6 +570,7 @@ async function loadAgentDetail(): Promise<boolean> {
       name.value = agent.name
       description.value = agent.description || ''
       systemPrompt.value = agent.config.systemPrompt || ''
+      ragDocumentUrl.value = ragDocumentUrlFromConfig(agent.config.ragConfig)
       mcpConfigText.value = formatMcpConfigForEditor(agent.config.mcpConfig)
       tag.value = agent.tag
       avatar.value = agent.avatar
@@ -542,6 +633,10 @@ async function handleSubmit() {
     return
   }
 
+  const ragParsed: AgentRagConfig | null = ragDocumentUrl.value
+    ? { documentUrl: ragDocumentUrl.value }
+    : null
+
   let mcpParsed: AgentMcpConfig | null = null
   try {
     mcpParsed = parseMcpConfigForSubmit(mcpConfigText.value)
@@ -557,7 +652,7 @@ async function handleSubmit() {
       description: description.value.trim() || undefined,
       config: {
         systemPrompt: systemPrompt.value,
-        ragConfig: null,
+        ragConfig: ragParsed,
         mcpConfig: mcpParsed,
       },
     }
@@ -593,6 +688,36 @@ async function handleSendDebug() {
 function useSuggestion(s: string) {
   debugInput.value = s
   nextTick(() => handleSendDebug())
+}
+
+function clearRagDocument() {
+  ragDocumentUrl.value = null
+}
+
+async function handleRagUpload(options: UploadRequestOptions) {
+  const id = agentId.value
+  if (!id) {
+    options.onError(new UploadAjaxError('无效的智能体ID', 0, 'POST', ''))
+    return
+  }
+  const file = options.file
+  ragUploading.value = true
+  try {
+    const res = await uploadRagDocument(id, file)
+    if (res.code === 0 && res.data?.documentUrl) {
+      ragDocumentUrl.value = res.data.documentUrl
+      options.onSuccess(res.data)
+      ElMessage.success('文档已上传，请点击「发布修改」生效')
+    } else {
+      options.onError(new UploadAjaxError(res.message || '上传失败', 0, 'POST', ''))
+      ElMessage.error(res.message || '上传失败')
+    }
+  } catch {
+    options.onError(new UploadAjaxError('上传失败', 0, 'POST', ''))
+    ElMessage.error('上传失败')
+  } finally {
+    ragUploading.value = false
+  }
 }
 </script>
 

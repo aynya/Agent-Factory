@@ -257,10 +257,32 @@ export interface AgentMcpLegacyUrlConfig {
 /** 存入 agent_versions.mcp_config（解析后）的配置对象 */
 export type AgentMcpConfig = AgentMcpServersConfig | AgentMcpLegacyUrlConfig;
 
+/**
+ * RAG 知识库（存入 agent_versions.rag_config）
+ * 常规用法：用户上传文档后，服务端写入 `documentUrl`（如 `/uploads/rag/{agentId}/{file}`），其余由服务端处理。
+ * 仍兼容旧数据：text / sourceUrl（仅供迁移或调试）。
+ */
+export interface AgentRagConfig {
+  /** 上传后由服务端返回的访问路径 */
+  documentUrl?: string;
+  text?: string;
+  sourceUrl?: string;
+  toolDescription?: string;
+  embeddingModel?: string;
+  topK?: number;
+  chunkSize?: number;
+  chunkOverlap?: number;
+}
+
+/** POST /api/agents/:agentId/rag-document */
+export interface UploadRagDocumentResponse {
+  documentUrl: string;
+}
+
 // Agent 配置类型
 export interface AgentConfig {
   systemPrompt: string;
-  ragConfig: unknown | null;
+  ragConfig: AgentRagConfig | null;
   mcpConfig: AgentMcpConfig | null;
 }
 

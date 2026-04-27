@@ -20,9 +20,10 @@ import type {
   UpdateAgentRequest,
   UpdateAgentResponse,
   CreateThreadByAgentResponse,
+  UploadRagDocumentResponse,
 } from '@monorepo/types'
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'
+const API_BASE_URL = 'http://localhost:3000'
 
 /**
  * 通用请求函数
@@ -193,7 +194,7 @@ export function createChatStream(
   }
 ): AbortController {
   const abortController = new AbortController()
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'
+  const API_BASE_URL = 'http://localhost:3000'
 
   /**
    * 执行 SSE 请求
@@ -329,7 +330,7 @@ export function createChatStream(
  * 中断聊天
  */
 export async function abortChat(data: ChatAbortRequest): Promise<ApiResponse<ChatAbortResponse>> {
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'
+  const API_BASE_URL = 'http://localhost:3000'
   const token = localStorage.getItem('access_token')
 
   const makeRequest = async (accessToken: string | null) => {
@@ -494,4 +495,48 @@ export async function updateAgent(
     method: 'PUT',
     body: JSON.stringify(data),
   })
+}
+
+/**
+ * 上传 RAG 知识库文档（multipart，字段名 document）
+ * POST /api/agents/:agentId/rag-document
+ */
+export async function uploadRagDocument(
+  agentId: string,
+  file: File
+): Promise<ApiResponse<UploadRagDocumentResponse>> {
+  const token = localStorage.getItem('access_token')
+
+  async function postWithAuth(auth: string | null) {
+    const form = new FormData()
+    form.append('document', file)
+    const headers: HeadersInit = {}
+    if (auth) {
+      headers['Authorization'] = `Bearer ${auth}`
+    }
+    return fetch(`${API_BASE_URL}/api/agents/${encodeURIComponent(agentId)}/rag-document`, {
+      method: 'POST',
+      headers,
+      body: form,
+      credentials: 'include',
+    })
+  }
+
+  let response = await postWithAuth(token)
+  if (response.status === 403 && token) {
+    const refreshResult = await refreshToken()
+    if (refreshResult.code === 0 && refreshResult.data) {
+      response = await postWithAuth(refreshResult.data.access_token)
+    } else {
+      localStorage.removeItem('access_token')
+      window.location.href = '/login'
+      throw new Error('Unauthorized')
+    }
+  }
+
+  const data = (await response.json()) as ApiResponse<UploadRagDocumentResponse>
+  if (!response.ok && response.status !== 403) {
+    return data
+  }
+  return data
 }
