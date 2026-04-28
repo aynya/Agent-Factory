@@ -144,6 +144,28 @@
                     </span>
                   </div>
                 </div>
+
+                <div class="space-y-1.5">
+                  <label
+                    class="text-[11px] font-bold text-slate-400 uppercase tracking-widest ml-1"
+                  >
+                    可见范围（随「发布修改」生效）
+                  </label>
+                  <el-radio-group
+                    v-model="agentStatus"
+                    class="flex flex-col items-start gap-2 ml-1"
+                  >
+                    <el-radio value="private" size="small" class="!mr-0">
+                      <span class="text-sm text-slate-700">私有 · 仅自己使用</span>
+                    </el-radio>
+                    <el-radio value="public" size="small" class="!mr-0">
+                      <span class="text-sm text-slate-700">公开 · 发布到市场</span>
+                    </el-radio>
+                  </el-radio-group>
+                  <p class="text-[10px] text-slate-400 ml-1 leading-relaxed">
+                    选择「公开」后，其他用户可在智能体市场中发现并使用该智能体（仍由你维护配置）。
+                  </p>
+                </div>
               </div>
             </section>
 
@@ -416,6 +438,8 @@ const ragUploading = ref(false)
 const tag = ref<string | null>(null)
 const avatar = ref<string | null>(null)
 const version = ref(1)
+/** 发布时写入 agents.status */
+const agentStatus = ref<'private' | 'public'>('private')
 
 const agentCategories = [
   { id: 'assistant', label: '助手' },
@@ -575,6 +599,7 @@ async function loadAgentDetail(): Promise<boolean> {
       tag.value = agent.tag
       avatar.value = agent.avatar
       version.value = agent.version
+      agentStatus.value = agent.status === 'public' ? 'public' : 'private'
       return true
     }
     ElMessage.error(result.message || '获取智能体详情失败')
@@ -650,6 +675,7 @@ async function handleSubmit() {
     // 配置页仅允许修改：简短描述、系统提示词；头像、名称、标签只读，不提交
     const updateData: UpdateAgentRequest = {
       description: description.value.trim() || undefined,
+      status: agentStatus.value,
       config: {
         systemPrompt: systemPrompt.value,
         ragConfig: ragParsed,

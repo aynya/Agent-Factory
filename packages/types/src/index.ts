@@ -312,5 +312,7 @@ export interface UpdateAgentRequest {
   description?: string;
   avatar?: string;
   tag?: string;
+  /** 与发布一并更新：private 仅创建者可见，public 出现在市场列表 */
+  status?: 'private' | 'public';
   config?: AgentConfig;
 }

@@ -857,10 +857,22 @@ router.put(
         ]
       );
 
-      await query(
-        'UPDATE agents SET latest_version = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-        [newVersion, agentId]
-      );
+      const nextStatus =
+        updateData.status === 'public' || updateData.status === 'private'
+          ? updateData.status
+          : null;
+
+      if (nextStatus != null) {
+        await query(
+          'UPDATE agents SET latest_version = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+          [newVersion, nextStatus, agentId]
+        );
+      } else {
+        await query(
+          'UPDATE agents SET latest_version = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+          [newVersion, agentId]
+        );
+      }
 
       // 将该 agent 的调试 thread 绑定到最新版本，便于调试始终使用最新配置
       await query(
