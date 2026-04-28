@@ -36,6 +36,18 @@ CREATE TABLE IF NOT EXISTS agent_versions (
   CONSTRAINT fk_agent_versions_agent FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE
 );
 
+-- 智能体收藏（仅公开智能体可收藏；用户数 = COUNT 按 agent_id）
+CREATE TABLE IF NOT EXISTS agent_favorites (
+  id VARCHAR(36) PRIMARY KEY,
+  user_id VARCHAR(36) NOT NULL,
+  agent_id VARCHAR(36) NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_agent_favorites_user_agent (user_id, agent_id),
+  INDEX idx_agent_favorites_agent (agent_id),
+  CONSTRAINT fk_agent_favorites_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_agent_favorites_agent FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE
+);
+
 -- 会话表
 CREATE TABLE IF NOT EXISTS threads (
   id VARCHAR(36) PRIMARY KEY,

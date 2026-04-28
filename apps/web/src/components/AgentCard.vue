@@ -44,37 +44,69 @@
       {{ agent.description || '暂无描述' }}
     </p>
 
-    <div class="pt-5 border-t border-slate-50 flex items-center justify-between relative z-10">
-      <span class="text-xs text-slate-400">{{ formatUpdateTime(agent.updatedAt) }}</span>
-      <!-- 操作按钮：只有所有者才显示 -->
-      <div v-if="isOwner" class="flex items-center gap-2" @click.stop>
-        <!-- 删除按钮：hover 显示 -->
-        <button
-          @click="handleDelete"
-          class="opacity-0 group-hover:opacity-100 h-8 w-8 rounded-lg bg-rose-50 text-rose-500 flex items-center justify-center hover:bg-rose-500 hover:text-white transition-all duration-300"
-          aria-label="删除"
+    <div
+      class="pt-5 border-t border-slate-50 flex items-center justify-between relative z-10 gap-2"
+    >
+      <div class="flex flex-col gap-1 min-w-0">
+        <span class="text-xs text-slate-400">{{ formatUpdateTime(agent.updatedAt) }}</span>
+        <div
+          v-if="showFavorite && agent.status === 'public'"
+          class="flex items-center gap-1.5 text-xs text-slate-500"
         >
-          <el-icon :size="15">
-            <DeleteFilled />
+          <el-icon :size="14" class="text-amber-500 shrink-0">
+            <StarFilled />
           </el-icon>
-        </button>
-        <!-- 配置按钮：常驻显示 -->
+          <span class="font-semibold text-slate-600">{{ agent.favoriteCount }} 人收藏</span>
+        </div>
+      </div>
+      <div class="flex items-center gap-2 shrink-0">
         <button
-          @click="handleConfigure"
-          class="h-8 w-8 rounded-lg bg-slate-50 text-slate-500 flex items-center justify-center hover:bg-indigo-600 hover:text-white transition-all duration-300"
-          aria-label="配置"
+          v-if="showFavorite && agent.status === 'public'"
+          type="button"
+          class="h-8 px-2.5 rounded-lg flex items-center gap-1 text-xs font-bold transition-colors"
+          :class="
+            agent.favoritedByMe
+              ? 'bg-amber-100 text-amber-800 hover:bg-amber-200'
+              : 'bg-slate-100 text-slate-600 hover:bg-indigo-100 hover:text-indigo-700'
+          "
+          @click.stop="emit('toggleFavorite', agent)"
         >
-          <el-icon :size="15">
-            <Tools />
+          <el-icon :size="14">
+            <StarFilled v-if="agent.favoritedByMe" />
+            <Star v-else />
           </el-icon>
+          {{ agent.favoritedByMe ? '已收藏' : '收藏' }}
         </button>
+        <!-- 操作按钮：只有所有者才显示 -->
+        <div v-if="isOwner" class="flex items-center gap-2" @click.stop>
+          <!-- 删除按钮：hover 显示 -->
+          <button
+            @click="handleDelete"
+            class="opacity-0 group-hover:opacity-100 h-8 w-8 rounded-lg bg-rose-50 text-rose-500 flex items-center justify-center hover:bg-rose-500 hover:text-white transition-all duration-300"
+            aria-label="删除"
+          >
+            <el-icon :size="15">
+              <DeleteFilled />
+            </el-icon>
+          </button>
+          <!-- 配置按钮：常驻显示 -->
+          <button
+            @click="handleConfigure"
+            class="h-8 w-8 rounded-lg bg-slate-50 text-slate-500 flex items-center justify-center hover:bg-indigo-600 hover:text-white transition-all duration-300"
+            aria-label="配置"
+          >
+            <el-icon :size="15">
+              <Tools />
+            </el-icon>
+          </button>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { Avatar, DeleteFilled, Tools } from '@element-plus/icons-vue'
+import { Avatar, DeleteFilled, Tools, Star, StarFilled } from '@element-plus/icons-vue'
 import type { AgentListItem } from '@monorepo/types'
 import { getAvatarUrl } from '@/utils/avatar'
 import { formatVersion } from '@/utils/version'
@@ -82,12 +114,15 @@ import { formatVersion } from '@/utils/version'
 const props = defineProps<{
   agent: AgentListItem
   isOwner?: boolean
+  /** 市场列表：展示收藏数与收藏按钮 */
+  showFavorite?: boolean
 }>()
 
 const emit = defineEmits<{
   click: [agent: AgentListItem]
   delete: [agent: AgentListItem]
   configure: [agent: AgentListItem]
+  toggleFavorite: [agent: AgentListItem]
 }>()
 
 function handleDelete(e: Event) {

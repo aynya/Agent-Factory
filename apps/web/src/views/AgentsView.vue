@@ -92,9 +92,11 @@
           :key="a.agentId"
           :agent="a"
           :is-owner="viewMode === 'mine'"
+          :show-favorite="viewMode === 'all'"
           @click="openAgentDetail"
           @delete="handleDeleteAgent"
           @configure="handleConfigureAgent"
+          @toggle-favorite="handleToggleFavorite"
         />
       </div>
     </main>
@@ -105,6 +107,7 @@
       @close="closeAgentDetail"
       @start-using="handleStartUsing"
       @share="handleShare"
+      @toggle-favorite="handleToggleFavorite"
     />
   </div>
 </template>
@@ -117,7 +120,7 @@ import { ElMessageBox, ElMessage } from 'element-plus'
 import type { AgentListItem } from '@monorepo/types'
 import { useAgentsStore } from '@/stores/agents'
 import { useChatStore } from '@/stores/chat'
-import { deleteAgent, createThreadByAgent } from '@/utils/api'
+import { deleteAgent, createThreadByAgent, favoriteAgent, unfavoriteAgent } from '@/utils/api'
 import AgentCard from '@/components/AgentCard.vue'
 import AgentDetailModal from '@/components/AgentDetailModal.vue'
 
@@ -202,6 +205,30 @@ function handleCreateAgent() {
 }
 
 /** 打开智能体详情弹窗 */
+async function handleToggleFavorite(agent: AgentListItem) {
+  if (agent.status !== 'public') return
+  const wasFav = agent.favoritedByMe
+  try {
+    const res = wasFav ? await unfavoriteAgent(agent.agentId) : await favoriteAgent(agent.agentId)
+    if (res.code === 0 && res.data) {
+      agentsStore.updateAgentFavorite(agent.agentId, res.data)
+      if (selectedAgent.value?.agentId === agent.agentId) {
+        selectedAgent.value = {
+          ...selectedAgent.value,
+          favoriteCount: res.data.favoriteCount,
+          favoritedByMe: res.data.favoritedByMe,
+        }
+      }
+      ElMessage.success(wasFav ? '已取消收藏' : '收藏成功')
+    } else {
+      ElMessage.error(res.message || '操作失败')
+    }
+  } catch (e) {
+    console.error(e)
+    ElMessage.error('操作失败')
+  }
+}
+
 function openAgentDetail(agent: AgentListItem) {
   selectedAgent.value = agent
 }

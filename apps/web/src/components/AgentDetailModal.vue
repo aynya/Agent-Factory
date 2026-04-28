@@ -84,7 +84,10 @@
             </div>
 
             <!-- 统计信息行 -->
-            <div class="grid grid-cols-3 gap-4 mb-8">
+            <div
+              class="grid gap-4 mb-8"
+              :class="agent.status === 'public' ? 'grid-cols-2 lg:grid-cols-4' : 'grid-cols-3'"
+            >
               <div class="bg-white border border-slate-100 p-4 rounded-2xl shadow-sm text-center">
                 <div class="text-slate-400 text-[10px] font-bold uppercase mb-1">状态</div>
                 <div class="text-xl font-bold text-slate-900">
@@ -103,6 +106,13 @@
                   {{ formatUpdateTime(agent.updatedAt).replace('更新于 ', '') }}
                 </div>
               </div>
+              <div
+                v-if="agent.status === 'public'"
+                class="bg-white border border-slate-100 p-4 rounded-2xl shadow-sm text-center"
+              >
+                <div class="text-slate-400 text-[10px] font-bold uppercase mb-1">收藏人数</div>
+                <div class="text-xl font-bold text-amber-600">{{ agent.favoriteCount }}</div>
+              </div>
             </div>
 
             <!-- 操作按钮 -->
@@ -115,6 +125,23 @@
                 <el-icon class="text-sm group-hover:translate-x-1 transition-transform">
                   <Promotion />
                 </el-icon>
+              </button>
+              <button
+                v-if="agent.status === 'public'"
+                type="button"
+                class="px-8 h-14 rounded-2xl border font-bold text-base transition-all flex items-center justify-center gap-2"
+                :class="
+                  agent.favoritedByMe
+                    ? 'border-amber-200 bg-amber-50 text-amber-900 hover:bg-amber-100'
+                    : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                "
+                @click="handleToggleFavorite"
+              >
+                <el-icon>
+                  <StarFilled v-if="agent.favoritedByMe" />
+                  <Star v-else />
+                </el-icon>
+                {{ agent.favoritedByMe ? '已收藏' : '收藏' }}
               </button>
               <button
                 class="px-8 h-14 rounded-2xl border border-slate-200 text-slate-600 font-bold text-base hover:bg-slate-50 transition-all flex items-center justify-center gap-2"
@@ -135,7 +162,15 @@
 
 <script setup lang="ts">
 import { watch, onUnmounted } from 'vue'
-import { Avatar, Close, Calendar, Promotion, Share } from '@element-plus/icons-vue'
+import {
+  Avatar,
+  Close,
+  Calendar,
+  Promotion,
+  Share,
+  Star,
+  StarFilled,
+} from '@element-plus/icons-vue'
 import type { AgentListItem } from '@monorepo/types'
 import { getAvatarUrl } from '@/utils/avatar'
 import { formatVersion } from '@/utils/version'
@@ -148,6 +183,7 @@ const emit = defineEmits<{
   close: []
   startUsing: [agent: AgentListItem]
   share: [agent: AgentListItem]
+  toggleFavorite: [agent: AgentListItem]
 }>()
 
 const agentCategories = [
@@ -195,6 +231,12 @@ function handleStartUsing() {
 function handleShare() {
   if (props.agent) {
     emit('share', props.agent)
+  }
+}
+
+function handleToggleFavorite() {
+  if (props.agent && props.agent.status === 'public') {
+    emit('toggleFavorite', props.agent)
   }
 }
 

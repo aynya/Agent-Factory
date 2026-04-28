@@ -65,11 +65,21 @@ export const useAgentsStore = defineStore('agents', () => {
     error.value = null
   }
 
+  function updateAgentFavorite(
+    agentId: string,
+    patch: { favoriteCount: number; favoritedByMe: boolean }
+  ) {
+    const i = agents.value.findIndex(a => a.agentId === agentId)
+    if (i === -1) return
+    agents.value[i] = { ...agents.value[i]!, ...patch }
+  }
+
   return {
     agents,
     loading,
     error,
     fetchAgents,
     clearAgents,
+    updateAgentFavorite,
   }
 })

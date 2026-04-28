@@ -200,8 +200,18 @@ export interface AgentListItem {
   tag: string | null;
   status: 'private' | 'public';
   latestVersion: number;
+  /** 收藏该智能体的用户数量 */
+  favoriteCount: number;
+  /** 当前登录用户是否已收藏（列表接口在已登录下返回） */
+  favoritedByMe: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+/** POST/DELETE /api/agents/:agentId/favorite 响应体 */
+export interface AgentFavoriteState {
+  favoriteCount: number;
+  favoritedByMe: boolean;
 }
 
 /** agents 表行（版本架构下无 description/config，以 latest_version 指向最新版本） */

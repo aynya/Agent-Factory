@@ -14,6 +14,7 @@ import type {
   Message,
   DebugThread,
   AgentListItem,
+  AgentFavoriteState,
   CreateAgentRequest,
   CreateAgentResponse,
   AgentDetail,
@@ -454,6 +455,26 @@ export async function deleteAgent(agentId: string): Promise<ApiResponse<null>> {
 export async function getAgentDetail(agentId: string): Promise<ApiResponse<AgentDetail>> {
   return request<AgentDetail>(`/api/agents/${agentId}`, {
     method: 'GET',
+  })
+}
+
+/**
+ * 收藏公开智能体
+ * POST /api/agents/:agentId/favorite
+ */
+export async function favoriteAgent(agentId: string): Promise<ApiResponse<AgentFavoriteState>> {
+  return request<AgentFavoriteState>(`/api/agents/${encodeURIComponent(agentId)}/favorite`, {
+    method: 'POST',
+  })
+}
+
+/**
+ * 取消收藏
+ * DELETE /api/agents/:agentId/favorite
+ */
+export async function unfavoriteAgent(agentId: string): Promise<ApiResponse<AgentFavoriteState>> {
+  return request<AgentFavoriteState>(`/api/agents/${encodeURIComponent(agentId)}/favorite`, {
+    method: 'DELETE',
   })
 }
 

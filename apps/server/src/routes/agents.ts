@@ -18,6 +18,7 @@ import {
 import type {
   ApiResponse,
   AgentListItem,
+  AgentFavoriteState,
   CreateAgentRequest,
   CreateAgentResponse,
   AgentDetail,
@@ -115,9 +116,27 @@ interface AgentListRow {
   created_at: string;
   updated_at: string;
   description: string | null;
+  favorite_count?: number | string;
+  favorited_by_me?: number | string;
 }
 
+const LIST_FAVORITE_SELECT = `(
+    SELECT COUNT(*) FROM agent_favorites f WHERE f.agent_id = a.id
+  ) AS favorite_count,
+  (
+    SELECT COUNT(*) FROM agent_favorites f2
+    WHERE f2.agent_id = a.id AND f2.user_id = ?
+  ) AS favorited_by_me`;
+
 function toAgentListItem(row: AgentListRow): AgentListItem {
+  const fc = row.favorite_count;
+  const favCount =
+    typeof fc === 'number' ? fc : Number.parseInt(String(fc ?? '0'), 10) || 0;
+  const fm = row.favorited_by_me;
+  const byMe =
+    typeof fm === 'number'
+      ? fm > 0
+      : Number.parseInt(String(fm ?? '0'), 10) > 0;
   return {
     agentId: row.id,
     name: row.name,
@@ -126,9 +145,32 @@ function toAgentListItem(row: AgentListRow): AgentListItem {
     tag: row.tag,
     status: row.status,
     latestVersion: row.latest_version,
+    favoriteCount: favCount,
+    favoritedByMe: byMe,
     createdAt: new Date(row.created_at).toISOString(),
     updatedAt: new Date(row.updated_at).toISOString(),
   };
+}
+
+async function getFavoriteStateForAgent(
+  agentId: string,
+  userId: string
+): Promise<AgentFavoriteState> {
+  const countRows = await query<{ c: number | string }>(
+    'SELECT COUNT(*) AS c FROM agent_favorites WHERE agent_id = ?',
+    [agentId]
+  );
+  const c = countRows[0]?.c;
+  const favoriteCount =
+    typeof c === 'number' ? c : Number.parseInt(String(c ?? '0'), 10) || 0;
+  const mine = await query<{ c: number | string }>(
+    'SELECT COUNT(*) AS c FROM agent_favorites WHERE agent_id = ? AND user_id = ?',
+    [agentId, userId]
+  );
+  const m = mine[0]?.c;
+  const favoritedByMe =
+    (typeof m === 'number' ? m : Number.parseInt(String(m ?? '0'), 10)) > 0;
+  return { favoriteCount, favoritedByMe };
 }
 
 /**
@@ -159,11 +201,12 @@ router.get(
         }
       }
 
-      let sql = `SELECT a.id, a.name, a.avatar, a.tag, a.status, a.latest_version, a.created_at, a.updated_at, av.description
+      let sql = `SELECT a.id, a.name, a.avatar, a.tag, a.status, a.latest_version, a.created_at, a.updated_at, av.description,
+        ${LIST_FAVORITE_SELECT}
         FROM agents a
         LEFT JOIN agent_versions av ON av.agent_id = a.id AND av.version = a.latest_version
         WHERE a.creator_id = ?`;
-      const params: (string | undefined)[] = [userId];
+      const params: string[] = [userId, userId];
 
       if (tag) {
         sql += ' AND a.tag = ?';
@@ -583,6 +626,109 @@ router.post(
 );
 
 /**
+ * 收藏公开智能体
+ * POST /api/agents/:agentId/favorite
+ */
+router.post(
+  '/:agentId/favorite',
+  authenticateToken,
+  async (req: Request, res: Response<ApiResponse<AgentFavoriteState>>) => {
+    try {
+      const userId = (
+        req as Request & { user: { user_id: string; username: string } }
+      ).user.user_id;
+      const agentId = req.params.agentId?.trim();
+      if (!agentId) {
+        res.status(400).json({
+          code: 4001,
+          message: 'agentId is required',
+          data: null,
+        });
+        return;
+      }
+
+      const agentRows = await query<{ status: string }>(
+        'SELECT status FROM agents WHERE id = ?',
+        [agentId]
+      );
+      if (agentRows.length === 0) {
+        res.status(404).json({
+          code: 404,
+          message: 'agent not found',
+          data: null,
+        });
+        return;
+      }
+      if (agentRows[0]!.status !== 'public') {
+        res.status(400).json({
+          code: 4002,
+          message: '仅公开智能体可被收藏',
+          data: null,
+        });
+        return;
+      }
+
+      const favId = generateUUID();
+      await query(
+        `INSERT INTO agent_favorites (id, user_id, agent_id) VALUES (?, ?, ?)
+         ON DUPLICATE KEY UPDATE agent_id = agent_id`,
+        [favId, userId, agentId]
+      );
+
+      const data = await getFavoriteStateForAgent(agentId, userId);
+      res.json({ code: 0, message: 'ok', data });
+    } catch (error) {
+      console.error('Favorite agent error:', error);
+      res.status(500).json({
+        code: 5000,
+        message: 'Internal server error',
+        data: null,
+      });
+    }
+  }
+);
+
+/**
+ * 取消收藏
+ * DELETE /api/agents/:agentId/favorite
+ */
+router.delete(
+  '/:agentId/favorite',
+  authenticateToken,
+  async (req: Request, res: Response<ApiResponse<AgentFavoriteState>>) => {
+    try {
+      const userId = (
+        req as Request & { user: { user_id: string; username: string } }
+      ).user.user_id;
+      const agentId = req.params.agentId?.trim();
+      if (!agentId) {
+        res.status(400).json({
+          code: 4001,
+          message: 'agentId is required',
+          data: null,
+        });
+        return;
+      }
+
+      await query(
+        'DELETE FROM agent_favorites WHERE user_id = ? AND agent_id = ?',
+        [userId, agentId]
+      );
+
+      const data = await getFavoriteStateForAgent(agentId, userId);
+      res.json({ code: 0, message: 'ok', data });
+    } catch (error) {
+      console.error('Unfavorite agent error:', error);
+      res.status(500).json({
+        code: 5000,
+        message: 'Internal server error',
+        data: null,
+      });
+    }
+  }
+);
+
+/**
  * 获取 Agent 当前最新版本的配置
  * GET /api/agents/:agentId
  * 仅 Agent 创建者可以访问，非创建者返回 403
@@ -932,11 +1078,16 @@ router.get(
         }
       }
 
-      let sql = `SELECT a.id, a.name, a.avatar, a.tag, a.status, a.latest_version, a.created_at, a.updated_at, av.description
+      const userId = (
+        req as Request & { user: { user_id: string; username: string } }
+      ).user.user_id;
+
+      let sql = `SELECT a.id, a.name, a.avatar, a.tag, a.status, a.latest_version, a.created_at, a.updated_at, av.description,
+        ${LIST_FAVORITE_SELECT}
         FROM agents a
         LEFT JOIN agent_versions av ON av.agent_id = a.id AND av.version = a.latest_version
         WHERE a.status = 'public'`;
-      const params: string[] = [];
+      const params: string[] = [userId];
 
       if (tag) {
         sql += ' AND a.tag = ?';
@@ -945,10 +1096,7 @@ router.get(
 
       sql += ' ORDER BY a.updated_at DESC';
 
-      const rows = await query<AgentListRow>(
-        sql,
-        params.length > 0 ? params : []
-      );
+      const rows = await query<AgentListRow>(sql, params);
 
       res.json({
         code: 0,
