@@ -991,7 +991,7 @@ router.put(
 
       await query(
         `INSERT INTO agent_versions (id, agent_id, version, description, system_prompt, rag_config, mcp_config)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, CAST(CONVERT(? USING utf8mb4) AS JSON), CAST(CONVERT(? USING utf8mb4) AS JSON))`,
         [
           versionId,
           agentId,

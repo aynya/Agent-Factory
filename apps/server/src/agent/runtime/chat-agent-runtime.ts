@@ -99,6 +99,92 @@ interface RuntimeState {
 interface McpToolDefinition {
   name: string;
   description?: string;
+  /** MCP tools/list 中的 JSON Schema，用于生成发给模型的入参结构 */
+  inputSchema?: unknown;
+}
+
+const MCP_ARGS_FALLBACK = z.record(z.string(), z.unknown());
+
+function jsonSchemaPropertyToZod(prop: unknown, isRequired: boolean): z.ZodTypeAny {
+  if (!prop || typeof prop !== 'object' || Array.isArray(prop)) {
+    const z0 = z.unknown();
+    return isRequired ? z0 : z0.optional();
+  }
+  const p = prop as Record<string, unknown>;
+  if (typeof p.$ref === 'string') {
+    const z0 = z.unknown();
+    return isRequired ? z0 : z0.optional();
+  }
+
+  let inner: z.ZodTypeAny;
+  if (Array.isArray(p.enum) && p.enum.length > 0) {
+    const vals = p.enum.filter((x): x is string => typeof x === 'string');
+    inner =
+      vals.length > 0
+        ? z.enum(vals as [string, ...string[]])
+        : z.string();
+  } else if (p.type === 'string') {
+    inner = z.string();
+  } else if (p.type === 'number' || p.type === 'integer') {
+    inner = z.number();
+  } else if (p.type === 'boolean') {
+    inner = z.boolean();
+  } else if (p.type === 'array') {
+    inner = z.array(z.unknown());
+  } else if (
+    p.type === 'object' &&
+    p.properties &&
+    typeof p.properties === 'object' &&
+    !Array.isArray(p.properties)
+  ) {
+    inner = z.record(z.string(), z.unknown());
+  } else {
+    inner = z.unknown();
+  }
+
+  if (typeof p.description === 'string' && p.description.trim()) {
+    inner = inner.describe(p.description.trim());
+  }
+
+  return isRequired ? inner : inner.optional();
+}
+
+/**
+ * 将 MCP 的 inputSchema（JSON Schema 子集）转为 Zod，便于 OpenAI 等按字段名约束生成 tool 参数。
+ * 识别失败时退回 z.record，行为与旧版一致。
+ */
+function mcpInputSchemaToZod(inputSchema: unknown): z.ZodType<Record<string, unknown>> {
+  if (
+    inputSchema == null ||
+    typeof inputSchema !== 'object' ||
+    Array.isArray(inputSchema)
+  ) {
+    return MCP_ARGS_FALLBACK;
+  }
+  const root = inputSchema as Record<string, unknown>;
+  const hasProps =
+    root.properties &&
+    typeof root.properties === 'object' &&
+    !Array.isArray(root.properties);
+  const typeOk = root.type === 'object' || root.type === undefined;
+  const node = hasProps && typeOk ? root : null;
+  if (!node) {
+    return MCP_ARGS_FALLBACK;
+  }
+  const properties = node.properties as Record<string, unknown>;
+  const required = new Set(
+    Array.isArray(node.required)
+      ? node.required.filter((k): k is string => typeof k === 'string')
+      : []
+  );
+  const shape: Record<string, z.ZodTypeAny> = {};
+  for (const [key, prop] of Object.entries(properties)) {
+    shape[key] = jsonSchemaPropertyToZod(prop, required.has(key));
+  }
+  if (Object.keys(shape).length === 0) {
+    return MCP_ARGS_FALLBACK;
+  }
+  return z.object(shape);
 }
 
 /** 单个 MCP 接入点（可从 mcpServers 中解析多条） */
@@ -580,7 +666,7 @@ async function createMcpTools(endpoint: McpEndpoint): Promise<RuntimeTool[]> {
       {
         name: `${toolNamePrefix}${sanitizeToolName(mcpTool.name)}`,
         description: mcpTool.description ?? `MCP 工具：${mcpTool.name}`,
-        schema: z.record(z.string(), z.unknown()),
+        schema: mcpInputSchemaToZod(mcpTool.inputSchema),
       }
     )
   );
@@ -677,6 +763,11 @@ async function loadContext(
   }
   if (hasMcpTool) {
     systemBlocks.push('已启用 MCP：可在对话中按需调用配置的远程工具。');
+  }
+  if (hasRagTool && hasMcpTool) {
+    systemBlocks.push(
+      '知识库工具 search_knowledge_base 仅用于检索本智能体已上传的文档；调用地图等 MCP 工具时，必须使用该工具要求的参数名与类型（见各工具参数说明），不要用单个 query 字段代替 MCP 接口实际要求的字段。'
+    );
   }
 
   return {
